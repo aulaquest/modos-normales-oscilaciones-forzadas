@@ -51,7 +51,7 @@
         .mode-item.selected { background-color: #3730a3; border-color: #4f46e5; }
         
         .mode-item-canvas {
-            width: 100px;
+            width: 80px;
             height: 40px;
             background-color: #1e293b;
             border-radius: 4px;
@@ -335,7 +335,7 @@
                 isUniform: true, uniformMass: 1.0, uniformK: 10.0,
                 simulationMode: 'real',
                 oscillationDirection: 'horizontal',
-                selectedMode: 0, normalModes: [], modeAmplitudes: [],
+                selectedMode: 0, normalModes: [], modeAmplitudes: [], modePhases: [],
                 isDragging: false, draggedMassIndex: -1,
                 individualMasses: [], individualKs: [],
                 dataLog: [],
@@ -365,6 +365,7 @@
                 for (let i = 0; i < state.numMasses; i++) { const massValue = state.isUniform ? state.uniformMass : state.individualMasses[i]; state.masses.push(new Mass(segmentSize * (i + 1), massValue, colors[i % colors.length])); }
                 for (let i = 0; i < state.numMasses + 1; i++) { const kValue = state.isUniform ? state.uniformK : state.individualKs[i]; state.springs.push({ k: kValue }); }
                 state.modeAmplitudes = new Array(state.numMasses).fill(0);
+                state.modePhases = new Array(state.numMasses).fill(0);
                 buildGraphCheckboxes();
                 buildEnergyGraphCheckboxes();
                 calculateNormalModes();
@@ -386,20 +387,37 @@
             function renderNormalModesList() {
                 dom.normalModesList.innerHTML = ''; const omega_0 = (state.uniformK > 0 && state.uniformMass > 0) ? Math.sqrt(state.uniformK / state.uniformMass) : 1;
                 state.normalModes.forEach((mode, index) => {
-                    const isSuperposition = state.simulationMode === 'superposition'; const modeEl = document.createElement('div'); modeEl.className = `mode-item p-2 rounded-md border border-slate-600 flex flex-col sm:flex-row justify-between items-center ${!isSuperposition && state.selectedMode === index ? 'selected' : ''}`; modeEl.dataset.index = index;
-                    let contentHTML = `<div class="flex-1 flex justify-between sm:justify-start sm:gap-4 items-center w-full"><div class="flex-shrink-0 flex flex-col justify-center text-xs"><span>Modo ${index + 1}</span><span class="font-semibold text-cyan-400">${(mode.omega / omega_0).toFixed(2)} ω₀</span><span class="text-gray-400">(${mode.omega.toFixed(1)} rad/s)</span></div><canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas></div>`;
-                    if (isSuperposition) { contentHTML += `<div class="w-full sm:w-24 mt-2 sm:mt-0 sm:ml-2"><div id="mode-amp-value-${index}" class="text-xs text-center text-gray-400">${state.modeAmplitudes[index].toFixed(2)}</div><input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}"></div>`; }
+                    const isSuperposition = state.simulationMode === 'superposition'; const modeEl = document.createElement('div'); modeEl.className = `mode-item p-2 rounded-md border border-slate-600 flex flex-wrap justify-between items-center ${!isSuperposition && state.selectedMode === index ? 'selected' : ''}`; modeEl.dataset.index = index;
+                    let contentHTML = `
+                        <div class="flex justify-between items-center w-full">
+                            <div class="flex-shrink-0 flex flex-col justify-center text-xs">
+                                <span>Modo ${index + 1}</span>
+                                <span class="font-semibold text-cyan-400">${(mode.omega / omega_0).toFixed(2)} ω₀</span>
+                                <span class="text-gray-400">(${mode.omega.toFixed(1)} rad/s)</span>
+                            </div>
+                            <canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas>
+                        </div>`;
+                    if (isSuperposition) {
+                        contentHTML += `
+                        <div class="w-full mt-2 space-y-1">
+                            <div class="text-xs flex justify-between"><span>Amp.</span><span id="mode-amp-value-${index}">${state.modeAmplitudes[index].toFixed(2)}</span></div>
+                            <input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}">
+                            <div class="text-xs flex justify-between"><span>Fase (φ)</span><span id="mode-phase-value-${index}">${(state.modePhases[index]).toFixed(2)}π</span></div>
+                            <input type="range" class="mode-phase-slider" data-index="${index}" min="-1" max="1" step="0.1" value="${state.modePhases[index]}">
+                        </div>`;
+                    }
                     modeEl.innerHTML = contentHTML;
                     if (!isSuperposition) { modeEl.classList.add('cursor-pointer'); modeEl.addEventListener('click', () => { state.selectedMode = index; if (state.isPlaying) { state.time = 0; } renderNormalModesList(); }); }
                     dom.normalModesList.appendChild(modeEl);
                 });
-                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const amplitude = parseFloat(e.target.value); state.modeAmplitudes[index] = amplitude; e.target.previousElementSibling.textContent = amplitude.toFixed(2); if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
+                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const amplitude = parseFloat(e.target.value); state.modeAmplitudes[index] = amplitude; document.getElementById(`mode-amp-value-${index}`).textContent = amplitude.toFixed(2); if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
+                dom.normalModesList.querySelectorAll('.mode-phase-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const phase = parseFloat(e.target.value); state.modePhases[index] = phase; document.getElementById(`mode-phase-value-${index}`).textContent = `${phase.toFixed(2)}π`; if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
             }
 
             function updatePhysics(dt_scaled) { if (state.simulationMode === 'real') updateRealEvolution(dt_scaled); else if (state.simulationMode === 'normal') updateNormalModeAnimation(); else if (state.simulationMode === 'superposition') updateSuperpositionEvolution(); }
             function updateRealEvolution(dt_scaled) { const forces = new Array(state.numMasses).fill(0); for (let i = 0; i < state.numMasses + 1; i++) { const spring = state.springs[i]; const prevDisp = (i === 0) ? 0 : state.masses[i - 1].x; const nextDisp = (i === state.numMasses) ? 0 : state.masses[i].x; const stretch = nextDisp - prevDisp; const force = spring.k * stretch; if (i > 0) forces[i - 1] += force; if (i < state.numMasses) forces[i] -= force; } if (state.isForced && state.normalModes.length > 0) { const fundamentalOmega = state.normalModes[0].omega; const drivingForce = state.forcingAmplitude * Math.cos(state.forcingFrequency * fundamentalOmega * state.time); forces[0] += drivingForce; } for (let i = 0; i < state.numMasses; i++) { if (state.isDragging && state.draggedMassIndex === i) continue; const mass = state.masses[i]; mass.a = (forces[i] - state.damping * mass.v) / mass.m; mass.v += mass.a * dt_scaled; mass.x += mass.v * dt_scaled; } }
             function updateNormalModeAnimation() { const mode = state.normalModes[state.selectedMode]; if (!mode) return; const A = (state.oscillationDirection === 'horizontal' ? dom.canvas.width : dom.canvas.height) / (state.numMasses * 4); state.masses.forEach((mass, i) => { mass.x = A * mode.amplitudes[i] * Math.cos(mode.omega * state.time); mass.v = -A * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time); }); }
-            function updateSuperpositionEvolution() { state.masses.forEach(m => { m.x = 0; m.v = 0; }); const A_base = (state.oscillationDirection === 'horizontal' ? dom.canvas.width : dom.canvas.height) / (state.numMasses * 4); state.normalModes.forEach((mode, n) => { const amp = state.modeAmplitudes[n] * A_base; if (amp === 0) return; state.masses.forEach((mass, i) => { mass.x += amp * mode.amplitudes[i] * Math.cos(mode.omega * state.time); mass.v += -amp * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time); }); }); }
+            function updateSuperpositionEvolution() { state.masses.forEach(m => { m.x = 0; m.v = 0; }); const A_base = (state.oscillationDirection === 'horizontal' ? dom.canvas.width : dom.canvas.height) / (state.numMasses * 4); state.normalModes.forEach((mode, n) => { const amp = state.modeAmplitudes[n] * A_base; const phase = state.modePhases[n] * Math.PI; if (amp === 0) return; state.masses.forEach((mass, i) => { mass.x += amp * mode.amplitudes[i] * Math.cos(mode.omega * state.time + phase); mass.v += -amp * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time + phase); }); }); }
             
             function draw() {
                 ctx.clearRect(0, 0, dom.canvas.width, dom.canvas.height); if (state.masses.length === 0) return; const y_center = dom.canvas.height / 2;
@@ -444,7 +462,7 @@
             }
 
             function drawEnergyGraph() {
-                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (!state.energyGraphData || state.energyGraphData.total.length < 2) return;
+                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (state.energyGraphData.total.length < 2) return;
                 const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height; const padding = { top: 10, bottom: 20, left: 35, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
                 let maxE = 0; 
                 state.graphedEnergyIndices.forEach(idx => {
