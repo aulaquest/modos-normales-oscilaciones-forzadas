@@ -340,7 +340,7 @@
                 individualMasses: [], individualKs: [],
                 dataLog: [],
                 graphedMassIndices: [], graphData: {},
-                graphedEnergyIndices: ['total'], energyGraphData: { total: [], individual: {} },
+                graphedEnergyIndices: ['total'], energyGraphData: { total: [], potential: [], kinetic: [], individual: {} },
                 pixelsPerMeter: 1, 
                 ruler: { x1: 50, y1: 50, x2: 200, y2: 50, dragging: null },
                 isForced: false,
@@ -354,10 +354,11 @@
                 constructor(eq_pos, m, color) { this.eq_pos = eq_pos; this.x = 0; this.v = 0; this.a = 0; this.m = m; this.color = color; this.radius = 12 + Math.sqrt(m) * 2; }
             }
 
-            // --- ALL FUNCTIONS ---
-
+            // --- ALL HELPER FUNCTIONS ---
             function drawLine(x1, y1, x2, y2) { ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+            function getMousePos(e) { const rect = dom.canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; return { x: clientX - rect.left, y: clientY - rect.top }; }
             
+            // --- CORE SIMULATION & DRAWING ---
             function setupSimulation() {
                 state.masses = []; state.springs = [];
                 const mainAxisSize = dom.canvas.width;
@@ -388,19 +389,13 @@
                 dom.normalModesList.innerHTML = ''; const omega_0 = (state.uniformK > 0 && state.uniformMass > 0) ? Math.sqrt(state.uniformK / state.uniformMass) : 1;
                 state.normalModes.forEach((mode, index) => {
                     const isSuperposition = state.simulationMode === 'superposition'; const modeEl = document.createElement('div'); modeEl.className = `mode-item p-2 rounded-md border border-slate-600 flex flex-col sm:flex-row justify-between items-center ${!isSuperposition && state.selectedMode === index ? 'selected' : ''}`; modeEl.dataset.index = index;
-                    let contentHTML = `<div class="flex-1 flex justify-between sm:justify-start sm:gap-4 items-center w-full">
-                        <div class="flex-shrink-0 flex flex-col justify-center text-xs">
-                            <span>Modo ${index + 1}</span>
-                            <span class="font-semibold text-cyan-400">${(mode.omega / omega_0).toFixed(2)} ω₀</span>
-                            <span class="text-gray-400">(${mode.omega.toFixed(1)} rad/s)</span>
-                        </div>
-                        <canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas></div>`;
+                    let contentHTML = `<div class="flex-1 flex justify-between sm:justify-start sm:gap-4 items-center w-full"><div class="flex-shrink-0 flex flex-col justify-center text-xs"><span>Modo ${index + 1}</span><span class="font-semibold text-cyan-400">${(mode.omega / omega_0).toFixed(2)} ω₀</span><span class="text-gray-400">(${mode.omega.toFixed(1)} rad/s)</span></div><canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas></div>`;
                     if (isSuperposition) { contentHTML += `<div class="w-full sm:w-24 mt-2 sm:mt-0 sm:ml-2"><div class="text-xs text-center text-gray-400">${(mode.omega).toFixed(1)} rad/s</div><input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}"></div>`; }
                     modeEl.innerHTML = contentHTML;
                     if (!isSuperposition) { modeEl.classList.add('cursor-pointer'); modeEl.addEventListener('click', () => { state.selectedMode = index; if (state.isPlaying) { state.time = 0; } renderNormalModesList(); }); }
                     dom.normalModesList.appendChild(modeEl);
                 });
-                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const amplitude = parseFloat(e.target.value); state.modeAmplitudes[index] = amplitude; if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
+                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const amplitude = parseFloat(e.target.value); state.modeAmplitudes[index] = amplitude; e.target.previousElementSibling.textContent = `${(state.normalModes[index].omega).toFixed(1)} rad/s`; if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
             }
 
             function updatePhysics(dt_scaled) { if (state.simulationMode === 'real') updateRealEvolution(dt_scaled); else if (state.simulationMode === 'normal') updateNormalModeAnimation(); else if (state.simulationMode === 'superposition') updateSuperpositionEvolution(); }
@@ -452,7 +447,16 @@
             function drawEnergyGraph() {
                 energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (state.energyGraphData.total.length < 2) return;
                 const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height; const padding = { top: 10, bottom: 20, left: 35, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
-                let maxE = 0; state.energyGraphData.total.forEach(p => { maxE = Math.max(maxE, p); }); maxE = Math.max(0.001, maxE);
+                let maxE = 0; 
+                state.graphedEnergyIndices.forEach(idx => {
+                    let data;
+                    if(idx === 'total') { data = state.energyGraphData.total; }
+                    else if(idx === 'potential') { data = state.energyGraphData.potential; }
+                    else if(idx === 'kinetic') { data = state.energyGraphData.kinetic; }
+                    else if(state.energyGraphData.individual[idx]) { data = state.energyGraphData.individual[idx]; }
+                    if (data) data.forEach(p => { maxE = Math.max(maxE, p); });
+                });
+                maxE = Math.max(0.001, maxE);
                 const scaleY = plotHeight / maxE;
                 
                 state.graphedEnergyIndices.forEach(idx => {
@@ -482,7 +486,7 @@
             function updateRuler() { if (dom.rulerContainer.classList.contains('hidden')) return; const { x1, y1, x2, y2 } = state.ruler; dom.rulerHandle1.style.transform = `translate(${x1 - 8}px, ${y1 - 8}px)`; dom.rulerHandle2.style.transform = `translate(${x2 - 8}px, ${y2 - 8}px)`; const dx = x2 - x1, dy = y2 - y1; const distPx = Math.hypot(dx, dy); const angle = Math.atan2(dy, dx) * 180 / Math.PI; dom.rulerLine.style.width = `${distPx}px`; dom.rulerLine.style.transform = `translate(${x1}px, ${y1}px) rotate(${angle}deg)`; const distMeters = distPx / state.pixelsPerMeter; dom.rulerText.textContent = `${(distMeters * 100).toFixed(2)} cm`; dom.rulerText.style.transform = `translate(${(x1 + x2) / 2}px, ${(y1 + y2) / 2 - 20}px)`; }
             
             function gameLoop() {
-                if (state.isPlaying) { const dt_scaled = state.dt * state.timeScale; state.time += dt_scaled; updatePhysics(dt_scaled); state.graphedMassIndices.forEach(idx => { if (state.masses[idx]) { state.graphData[idx].push({ time: state.time, pos: state.masses[idx].x }); if (state.graphData[idx].length > 300) state.graphData[idx].shift(); } }); const energies = calculateEnergies(); state.energyGraphData.total.push(energies.total); state.energyGraphData.potential.push(energies.potential); state.energyGraphData.kinetic.push(energies.kinetic); for(let i=0; i < state.numMasses; i++){ if(!state.energyGraphData.individual[i]) state.energyGraphData.individual[i] = []; state.energyGraphData.individual[i].push(energies.individual[i]); if(state.energyGraphData.individual[i].length > 300) state.energyGraphData.individual[i].shift();} if (state.energyGraphData.total.length > 300) {state.energyGraphData.total.shift(); state.energyGraphData.potential.shift(); state.energyGraphData.kinetic.shift();} }
+                if (state.isPlaying) { const dt_scaled = state.dt * state.timeScale; state.time += dt_scaled; updatePhysics(dt_scaled); state.graphedMassIndices.forEach(idx => { if (state.masses[idx]) { if(!state.graphData[idx]) state.graphData[idx] = []; state.graphData[idx].push({ time: state.time, pos: state.masses[idx].x }); if (state.graphData[idx].length > 300) state.graphData[idx].shift(); } }); const energies = calculateEnergies(); if(!state.energyGraphData.total) state.energyGraphData.total = []; state.energyGraphData.total.push(energies.total); if(!state.energyGraphData.potential) state.energyGraphData.potential = []; state.energyGraphData.potential.push(energies.potential); if(!state.energyGraphData.kinetic) state.energyGraphData.kinetic = []; state.energyGraphData.kinetic.push(energies.kinetic); for(let i=0; i < state.numMasses; i++){ if(!state.energyGraphData.individual[i]) state.energyGraphData.individual[i] = []; state.energyGraphData.individual[i].push(energies.individual[i]); if(state.energyGraphData.individual[i].length > 300) state.energyGraphData.individual[i].shift();} if (state.energyGraphData.total.length > 300) {state.energyGraphData.total.shift(); state.energyGraphData.potential.shift(); state.energyGraphData.kinetic.shift();} }
                 dom.timeDisplay.forEach(el => el.textContent = state.time.toFixed(2) + ' s');
                 draw(); animateModePreviews(); drawGraph(); drawEnergyGraph(); updateRuler();
                 animationFrameId = requestAnimationFrame(gameLoop);
@@ -491,7 +495,7 @@
             function resizeCanvas() { const container = dom.simulationWrapper; let width = container.clientWidth; if (width === 0) width = Math.max(300, window.innerWidth * 0.55); dom.canvas.width = width; dom.canvas.height = state.oscillationDirection === 'horizontal' ? width / 3 : width / 1.5; [dom.graphCanvas, dom.energyGraphCanvas].forEach(c => { c.width = c.clientWidth; c.height = c.clientHeight; }); setupSimulation(); draw(); }
             function createIndividualControls() { dom.individualParamsControls.innerHTML = ''; let massHtml = '<h4 class="text-xs text-gray-400 mt-2">Masas Individuales (kg)</h4>'; for(let i=0; i < state.numMasses; i++) { massHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">m<sub>${i+1}</sub></label><input type="range" class="individual-mass-slider" data-index="${i}" min="0.1" max="5" step="0.1" value="${state.individualMasses[i]}"><span class="w-10 text-right text-xs">${state.individualMasses[i].toFixed(1)}</span></div>`; } dom.individualParamsControls.innerHTML += massHtml; let kHtml = '<h4 class="text-xs text-gray-400 mt-2">Constantes Elásticas (N/m)</h4>'; for(let i=0; i < state.numMasses + 1; i++) { kHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">k<sub>${i+1}</sub></label><input type="range" class="individual-k-slider" data-index="${i}" min="1" max="50" step="1" value="${state.individualKs[i]}"><span class="w-10 text-right text-xs">${state.individualKs[i].toFixed(1)}</span></div>`; } dom.individualParamsControls.innerHTML += kHtml; dom.individualParamsControls.querySelectorAll('.individual-mass-slider').forEach(slider => { slider.addEventListener('input', e => { const index = parseInt(e.target.dataset.index); const value = parseFloat(e.target.value); state.individualMasses[index] = value; e.target.nextElementSibling.textContent = value.toFixed(1); setupSimulation(); }); }); dom.individualParamsControls.querySelectorAll('.individual-k-slider').forEach(slider => { slider.addEventListener('input', e => { const index = parseInt(e.target.dataset.index); const value = parseFloat(e.target.value); state.individualKs[index] = value; e.target.nextElementSibling.textContent = value.toFixed(1); setupSimulation(); }); }); }
             function handleSimModeChange() { state.simulationMode = document.querySelector('input[name="sim-mode"]:checked').value; const isNormalOrSuper = state.simulationMode === 'normal' || state.simulationMode === 'superposition'; dom.normalModesPanel.classList.toggle('hidden', !isNormalOrSuper); if (isNormalOrSuper) { if (state.simulationMode === 'normal') { dom.normalModesDescription.textContent = "Selecciona un modo para visualizar su patrón y frecuencia."; } else { dom.normalModesDescription.textContent = "Ajusta la amplitud de cada modo para crear una superposición."; } renderNormalModesList(); animateModePreviews(); } if (state.simulationMode !== 'real') { if (state.isPlaying) state.time = 0; state.masses.forEach(m => { m.x = 0; m.v = 0; }); } }
-            function handleMassCountChange(delta) { let newCount = state.numMasses + delta; newCount = Math.max(2, Math.min(8, newCount)); if (newCount === state.numMasses) return; state.numMasses = newCount; dom.massCountLabelHud.textContent = state.numMasses; state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK); state.graphedMassIndices = []; state.graphData = {}; state.energyGraphData = { total: [], individual: {} }; if(!state.isUniform) createIndividualControls(); setupSimulation(); }
+            function handleMassCountChange(delta) { let newCount = state.numMasses + delta; newCount = Math.max(2, Math.min(8, newCount)); if (newCount === state.numMasses) return; state.numMasses = newCount; dom.massCountLabelHud.textContent = state.numMasses; state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK); state.graphedMassIndices = []; state.graphData = {}; state.energyGraphData = { total: [], potential: [], kinetic: [], individual: {} }; if(!state.isUniform) createIndividualControls(); setupSimulation(); }
             function togglePlayPause() { state.isPlaying = !state.isPlaying; dom.playPauseBtn.textContent = state.isPlaying ? 'Pausa' : 'Play'; }
             function calculateEnergies() { let kinetic = 0, potential = 0, individual = []; state.masses.forEach(mass => { const ke = 0.5 * mass.m * (mass.v * state.pixelsPerMeter) * (mass.v * state.pixelsPerMeter); kinetic += ke; individual.push(ke); }); for (let i = 0; i < state.numMasses + 1; i++) { const stretch = (i < state.numMasses ? state.masses[i].x : 0) - (i > 0 ? state.masses[i - 1].x : 0); potential += 0.5 * state.springs[i].k * (stretch / state.pixelsPerMeter) * (stretch / state.pixelsPerMeter); } return { kinetic, potential, total: kinetic + potential, individual }; }
             function addDataToLog() { const energies = calculateEnergies(); const snapshot = { time: state.time, mode: state.simulationMode, numMasses: state.numMasses, damping: state.damping, kineticEnergy: energies.kinetic, potentialEnergy: energies.potential, totalEnergy: energies.total, positions: state.masses.map(m => m.x) }; state.dataLog.push(snapshot); renderDataLog(); renderDataLog(true); }
@@ -547,12 +551,12 @@
                     if (type === 'T') { labelText = 'T'; color = 'white'; }
                     else { labelText = `${type+1}`; color = colors[type % colors.length]; }
 
-                    label.innerHTML = `<input type="checkbox" class="energy-graph-checkbox" value="${type}" ${state.graphedEnergyIndices.includes(type) ? 'checked' : ''}>
+                    label.innerHTML = `<input type="checkbox" class="energy-graph-checkbox" value="${type}" ${state.graphedEnergyIndices.includes(type) || state.graphedEnergyIndices.includes(String(type)) ? 'checked' : ''}>
                                        <span class="checkmark"></span>
                                        <span style="color:${color}; margin-left:8px;">${labelText}</span>`;
                     
                     label.querySelector('input').addEventListener('change', (e) => {
-                        const val = e.target.value;
+                        const val = e.target.value === 'T' ? 'total' : e.target.value;
                         const idx = state.graphedEnergyIndices.indexOf(val);
                         if(idx > -1) state.graphedEnergyIndices.splice(idx, 1);
                         else state.graphedEnergyIndices.push(val);
@@ -584,7 +588,6 @@
                 window.addEventListener('mousemove', combinedMoveListener); window.addEventListener('touchmove', combinedMoveListener, { passive: false });
                 window.addEventListener('mouseup', combinedEndListener); window.addEventListener('mouseleave', combinedEndListener); window.addEventListener('touchend', combinedEndListener);
                 
-                // Forced Oscillator Listeners
                 dom.forcedOscillatorCheckbox.addEventListener('change', e => {
                     state.isForced = e.target.checked;
                     dom.forcedOscillatorControls.classList.toggle('hidden', !state.isForced);
