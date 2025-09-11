@@ -136,11 +136,17 @@
         </div>
          <div id="graph-panel" class="w-full max-w-2xl mx-auto mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
              <div class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg">
-                <h4 id="graph-title" class="text-sm font-bold text-sky-400 mb-2 text-center">Posición vs. Tiempo (Clic en masa)</h4>
+                <div class="flex justify-between items-center mb-2 flex-wrap">
+                    <h4 id="graph-title" class="text-sm font-bold text-sky-400">Posición vs. Tiempo</h4>
+                    <div id="graph-checkboxes-container" class="flex gap-x-2 flex-wrap"></div>
+                </div>
                 <canvas id="graph-canvas" class="w-full h-32 rounded bg-slate-800/20"></canvas>
              </div>
              <div class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg">
-                <h4 class="text-sm font-bold text-sky-400 mb-2 text-center">Energía vs. Tiempo</h4>
+                <div class="flex justify-between items-center mb-2 flex-wrap">
+                    <h4 class="text-sm font-bold text-sky-400">Energía vs. Tiempo</h4>
+                    <div id="energy-graph-checkboxes-container" class="flex gap-x-2 flex-wrap"></div>
+                </div>
                 <canvas id="energy-graph-canvas" class="w-full h-32 rounded bg-slate-800/20"></canvas>
              </div>
          </div>
@@ -235,7 +241,7 @@
                 <div id="forced-oscillator-controls" class="hidden space-y-2 pt-2 border-t border-slate-700">
                     <div>
                         <label for="forcing-amplitude-slider" class="text-xs text-gray-400">Amplitud Fuerza (F₀): <span id="forcing-amplitude-label" class="font-bold text-white">1.0</span> N</label>
-                        <input type="range" id="forcing-amplitude-slider" min="0" max="10" step="0.1" value="1.0">
+                        <input type="range" id="forcing-amplitude-slider" min="0" max="20" step="0.1" value="1.0">
                     </div>
                     <div>
                         <label for="forcing-frequency-slider" class="text-xs text-gray-400">Frecuencia Forzada (ωd): <span id="forcing-frequency-label" class="font-bold text-white">1.00</span> ω₀</label>
@@ -293,7 +299,9 @@
                 dataTableBody: document.getElementById('data-table-body'),
                 graphCanvas: document.getElementById('graph-canvas'),
                 graphTitle: document.getElementById('graph-title'),
+                graphCheckboxesContainer: document.getElementById('graph-checkboxes-container'),
                 energyGraphCanvas: document.getElementById('energy-graph-canvas'),
+                energyGraphCheckboxesContainer: document.getElementById('energy-graph-checkboxes-container'),
                 rulerCheckbox: document.getElementById('ruler-checkbox'),
                 rulerContainer: document.getElementById('ruler-container'),
                 rulerHandle1: document.getElementById('ruler-handle1'),
@@ -331,7 +339,8 @@
                 isDragging: false, draggedMassIndex: -1,
                 individualMasses: [], individualKs: [],
                 dataLog: [],
-                graphedMassIndex: -1, graphData: [], energyGraphData: [],
+                graphedMassIndices: [], graphData: {},
+                graphedEnergyIndices: ['total'], energyGraphData: { total: [], individual: {} },
                 pixelsPerMeter: 1, 
                 ruler: { x1: 50, y1: 50, x2: 200, y2: 50, dragging: null },
                 isForced: false,
@@ -345,6 +354,8 @@
                 constructor(eq_pos, m, color) { this.eq_pos = eq_pos; this.x = 0; this.v = 0; this.a = 0; this.m = m; this.color = color; this.radius = 12 + Math.sqrt(m) * 2; }
             }
 
+            // --- ALL FUNCTIONS ---
+
             function drawLine(x1, y1, x2, y2) { ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
             
             function setupSimulation() {
@@ -355,6 +366,8 @@
                 for (let i = 0; i < state.numMasses; i++) { const massValue = state.isUniform ? state.uniformMass : state.individualMasses[i]; state.masses.push(new Mass(segmentSize * (i + 1), massValue, colors[i % colors.length])); }
                 for (let i = 0; i < state.numMasses + 1; i++) { const kValue = state.isUniform ? state.uniformK : state.individualKs[i]; state.springs.push({ k: kValue }); }
                 state.modeAmplitudes = new Array(state.numMasses).fill(0);
+                buildGraphCheckboxes();
+                buildEnergyGraphCheckboxes();
                 calculateNormalModes();
             }
             
@@ -375,8 +388,14 @@
                 dom.normalModesList.innerHTML = ''; const omega_0 = (state.uniformK > 0 && state.uniformMass > 0) ? Math.sqrt(state.uniformK / state.uniformMass) : 1;
                 state.normalModes.forEach((mode, index) => {
                     const isSuperposition = state.simulationMode === 'superposition'; const modeEl = document.createElement('div'); modeEl.className = `mode-item p-2 rounded-md border border-slate-600 flex flex-col sm:flex-row justify-between items-center ${!isSuperposition && state.selectedMode === index ? 'selected' : ''}`; modeEl.dataset.index = index;
-                    let contentHTML = `<div class="flex-1 flex justify-between sm:justify-start sm:gap-4 items-center w-full"><div class="flex-shrink-0 flex flex-col justify-center"><span class="text-xs">Modo ${index + 1}</span><span class="text-sm font-semibold text-cyan-400">${(mode.omega / omega_0).toFixed(2)} ω₀</span></div><canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas></div>`;
-                    if (isSuperposition) { contentHTML += `<div class="w-full sm:w-24 mt-2 sm:mt-0 sm:ml-2"><input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}"></div>`; }
+                    let contentHTML = `<div class="flex-1 flex justify-between sm:justify-start sm:gap-4 items-center w-full">
+                        <div class="flex-shrink-0 flex flex-col justify-center text-xs">
+                            <span>Modo ${index + 1}</span>
+                            <span class="font-semibold text-cyan-400">${(mode.omega / omega_0).toFixed(2)} ω₀</span>
+                            <span class="text-gray-400">(${mode.omega.toFixed(1)} rad/s)</span>
+                        </div>
+                        <canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas></div>`;
+                    if (isSuperposition) { contentHTML += `<div class="w-full sm:w-24 mt-2 sm:mt-0 sm:ml-2"><div class="text-xs text-center text-gray-400">${(mode.omega).toFixed(1)} rad/s</div><input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}"></div>`; }
                     modeEl.innerHTML = contentHTML;
                     if (!isSuperposition) { modeEl.classList.add('cursor-pointer'); modeEl.addEventListener('click', () => { state.selectedMode = index; if (state.isPlaying) { state.time = 0; } renderNormalModesList(); }); }
                     dom.normalModesList.appendChild(modeEl);
@@ -394,51 +413,76 @@
                 ctx.fillStyle = '#64748b'; ctx.fillRect(0, y_center - 50, 10, 100); ctx.fillRect(dom.canvas.width - 10, y_center - 50, 10, 100);
                 if (state.isForced && state.normalModes.length > 0) { const fundamentalOmega = state.normalModes[0].omega; const actuatorOffset = 10 * Math.cos(state.forcingFrequency * fundamentalOmega * state.time); ctx.fillStyle = '#a5b4fc'; if (state.oscillationDirection === 'horizontal') { ctx.fillRect(0, y_center - 40, 15 + actuatorOffset, 80); } else { ctx.fillRect(0, y_center - 40 + actuatorOffset, 10, 80); } }
                 if (state.oscillationDirection === 'horizontal') { let last_x = 10; state.masses.forEach((mass) => { drawLine(last_x, y_center, mass.eq_pos + mass.x, y_center); last_x = mass.eq_pos + mass.x; }); drawLine(last_x, y_center, dom.canvas.width - 10, y_center); } else { let last_pos = { x: 10, y: y_center }; state.masses.forEach(mass => { drawLine(last_pos.x, last_pos.y, mass.eq_pos, y_center + mass.x); last_pos = { x: mass.eq_pos, y: y_center + mass.x }; }); drawLine(last_pos.x, last_pos.y, dom.canvas.width - 10, y_center); }
-                state.masses.forEach((mass, i) => { const screenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const screenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; ctx.beginPath(); ctx.arc(screenX, screenY, mass.radius, 0, Math.PI * 2); ctx.fillStyle = mass.color; ctx.fill(); if (i === state.graphedMassIndex) { ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke(); } });
+                state.masses.forEach((mass, i) => { const screenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const screenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; ctx.beginPath(); ctx.arc(screenX, screenY, mass.radius, 0, Math.PI * 2); ctx.fillStyle = mass.color; ctx.fill(); if (state.graphedMassIndices.includes(i)) { ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke(); } });
             }
 
             function animateModePreviews() { if (state.simulationMode === 'real' || state.normalModes.length === 0) return; state.normalModes.forEach((mode, index) => { drawModePattern(document.getElementById(`mode-canvas-${index}`), mode.amplitudes, state.time, state.oscillationDirection); }); }
             
-            function selectMassForGraphing(index) { state.graphedMassIndex = index; state.graphData = []; dom.graphTitle.textContent = `Posición: Masa ${index + 1}`; }
+            function toggleMassForGraphing(index) {
+                const i = state.graphedMassIndices.indexOf(index);
+                if (i > -1) { state.graphedMassIndices.splice(i, 1); } else { state.graphedMassIndices.push(index); }
+                if (!state.graphData[index]) { state.graphData[index] = []; }
+                buildGraphCheckboxes();
+            }
             
             function drawGraph() {
-                graphCtx.clearRect(0, 0, dom.graphCanvas.width, dom.graphCanvas.height); if (state.graphedMassIndex === -1 || state.graphData.length < 2) return;
+                graphCtx.clearRect(0, 0, dom.graphCanvas.width, dom.graphCanvas.height); 
+                if (state.graphedMassIndices.length === 0) return;
                 const w = dom.graphCanvas.width, h = dom.graphCanvas.height; const padding = { top: 10, bottom: 20, left: 30, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
-                let minVal = 0, maxVal = 0; state.graphData.forEach(p => { minVal = Math.min(minVal, p.pos); maxVal = Math.max(maxVal, p.pos); });
+                let minVal = 0, maxVal = 0; 
+                state.graphedMassIndices.forEach(idx => {
+                    if(state.graphData[idx]) {
+                        state.graphData[idx].forEach(p => { minVal = Math.min(minVal, p.pos); maxVal = Math.max(maxVal, p.pos); });
+                    }
+                });
                 const range = Math.max(0.01 / state.pixelsPerMeter, maxVal - minVal) * 100;
                 const y_center = (minVal + maxVal) / 2 * 100; const scaleY = plotHeight / (range * 1.2 || 1);
-                graphCtx.strokeStyle = colors[state.graphedMassIndex % colors.length]; graphCtx.lineWidth = 2; graphCtx.beginPath();
-                for (let i = 0; i < state.graphData.length; i++) { const screenX = padding.left + (i / (state.graphData.length - 1)) * plotWidth; const screenY = (h / 2) - ((state.graphData[i].pos*100) - y_center) * scaleY; if (i === 0) graphCtx.moveTo(screenX, screenY); else graphCtx.lineTo(screenX, screenY); }
-                graphCtx.stroke();
+                state.graphedMassIndices.forEach(idx => {
+                    const data = state.graphData[idx];
+                    if(!data || data.length < 2) return;
+                    graphCtx.strokeStyle = colors[idx % colors.length]; graphCtx.lineWidth = 2; graphCtx.beginPath();
+                    for (let i = 0; i < data.length; i++) { const screenX = padding.left + (i / (data.length - 1)) * plotWidth; const screenY = (h / 2) - ((data[i].pos*100) - y_center) * scaleY; if (i === 0) graphCtx.moveTo(screenX, screenY); else graphCtx.lineTo(screenX, screenY); }
+                    graphCtx.stroke();
+                });
                 graphCtx.strokeStyle = '#64748b'; graphCtx.lineWidth = 1; graphCtx.beginPath(); graphCtx.moveTo(padding.left, padding.top); graphCtx.lineTo(padding.left, h - padding.bottom); graphCtx.lineTo(w - padding.right, h - padding.bottom); graphCtx.stroke();
                 graphCtx.fillStyle = '#94a3b8'; graphCtx.font = '10px Inter'; const maxLabel = ((y_center + (range * 0.6))).toFixed(1); const minLabel = ((y_center - (range * 0.6))).toFixed(1);
                 graphCtx.fillText(maxLabel + ' cm', 0, padding.top + 3); graphCtx.fillText(minLabel + ' cm', 0, h - padding.bottom);
             }
 
             function drawEnergyGraph() {
-                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (state.energyGraphData.length < 2) return;
-                const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height; const padding = { top: 10, bottom: 20, left: 30, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
-                let maxE = 0; state.energyGraphData.forEach(p => { maxE = Math.max(maxE, p.total); }); maxE = Math.max(0.001, maxE);
+                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (state.energyGraphData.total.length < 2) return;
+                const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height; const padding = { top: 10, bottom: 20, left: 35, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
+                let maxE = 0; state.energyGraphData.total.forEach(p => { maxE = Math.max(maxE, p); }); maxE = Math.max(0.001, maxE);
                 const scaleY = plotHeight / maxE;
-                ['kinetic', 'potential', 'total'].forEach((type, i) => {
-                    energyGraphCtx.strokeStyle = [ '#fb923c', '#60a5fa', 'white'][i]; energyGraphCtx.lineWidth = (type === 'total' ? 2 : 1.5);
+                
+                state.graphedEnergyIndices.forEach(idx => {
+                    let data, color;
+                    if(idx === 'total') { data = state.energyGraphData.total; color = 'white'; }
+                    else if(idx === 'potential') { data = state.energyGraphData.potential; color = '#60a5fa'; }
+                    else if(idx === 'kinetic') { data = state.energyGraphData.kinetic; color = '#fb923c'; }
+                    else { data = state.energyGraphData.individual[idx]; color = colors[idx % colors.length]; }
+
+                    if(!data || data.length < 2) return;
+                    energyGraphCtx.strokeStyle = color; energyGraphCtx.lineWidth = (idx === 'total' ? 2 : 1.5);
                     energyGraphCtx.beginPath();
-                    for (let j = 0; j < state.energyGraphData.length; j++) {
-                        const screenX = padding.left + (j / (state.energyGraphData.length - 1)) * plotWidth;
-                        const screenY = h - padding.bottom - state.energyGraphData[j][type] * scaleY;
+                    for (let j = 0; j < data.length; j++) {
+                        const screenX = padding.left + (j / (data.length - 1)) * plotWidth;
+                        const screenY = h - padding.bottom - data[j] * scaleY;
                         if (j === 0) energyGraphCtx.moveTo(screenX, screenY); else energyGraphCtx.lineTo(screenX, screenY);
                     }
                     energyGraphCtx.stroke();
                 });
+                
                 energyGraphCtx.strokeStyle = '#64748b'; energyGraphCtx.lineWidth = 1; energyGraphCtx.beginPath(); energyGraphCtx.moveTo(padding.left, padding.top); energyGraphCtx.lineTo(padding.left, h - padding.bottom); energyGraphCtx.lineTo(w - padding.right, h - padding.bottom); energyGraphCtx.stroke();
                 energyGraphCtx.fillStyle = '#94a3b8'; energyGraphCtx.font = '10px Inter';
-                energyGraphCtx.fillText((maxE * 1000).toFixed(1) + ' mJ', 0, padding.top + 3); energyGraphCtx.fillText('0', 15, h - padding.bottom);
+                const maxLabel = (maxE > 1000 || (maxE < 0.01 && maxE > 0)) ? maxE.toExponential(1) : maxE.toFixed(2);
+                energyGraphCtx.fillText(maxLabel + ' J', 0, padding.top + 3); energyGraphCtx.fillText('0', 15, h - padding.bottom);
             }
             
             function updateRuler() { if (dom.rulerContainer.classList.contains('hidden')) return; const { x1, y1, x2, y2 } = state.ruler; dom.rulerHandle1.style.transform = `translate(${x1 - 8}px, ${y1 - 8}px)`; dom.rulerHandle2.style.transform = `translate(${x2 - 8}px, ${y2 - 8}px)`; const dx = x2 - x1, dy = y2 - y1; const distPx = Math.hypot(dx, dy); const angle = Math.atan2(dy, dx) * 180 / Math.PI; dom.rulerLine.style.width = `${distPx}px`; dom.rulerLine.style.transform = `translate(${x1}px, ${y1}px) rotate(${angle}deg)`; const distMeters = distPx / state.pixelsPerMeter; dom.rulerText.textContent = `${(distMeters * 100).toFixed(2)} cm`; dom.rulerText.style.transform = `translate(${(x1 + x2) / 2}px, ${(y1 + y2) / 2 - 20}px)`; }
             
             function gameLoop() {
-                if (state.isPlaying) { const dt_scaled = state.dt * state.timeScale; state.time += dt_scaled; updatePhysics(dt_scaled); if (state.graphedMassIndex !== -1) { state.graphData.push({ time: state.time, pos: state.masses[state.graphedMassIndex].x }); if (state.graphData.length > 300) state.graphData.shift(); } const energies = calculateEnergies(); state.energyGraphData.push(energies); if (state.energyGraphData.length > 300) state.energyGraphData.shift(); }
+                if (state.isPlaying) { const dt_scaled = state.dt * state.timeScale; state.time += dt_scaled; updatePhysics(dt_scaled); state.graphedMassIndices.forEach(idx => { if (state.masses[idx]) { state.graphData[idx].push({ time: state.time, pos: state.masses[idx].x }); if (state.graphData[idx].length > 300) state.graphData[idx].shift(); } }); const energies = calculateEnergies(); state.energyGraphData.total.push(energies.total); state.energyGraphData.potential.push(energies.potential); state.energyGraphData.kinetic.push(energies.kinetic); for(let i=0; i < state.numMasses; i++){ if(!state.energyGraphData.individual[i]) state.energyGraphData.individual[i] = []; state.energyGraphData.individual[i].push(energies.individual[i]); if(state.energyGraphData.individual[i].length > 300) state.energyGraphData.individual[i].shift();} if (state.energyGraphData.total.length > 300) {state.energyGraphData.total.shift(); state.energyGraphData.potential.shift(); state.energyGraphData.kinetic.shift();} }
                 dom.timeDisplay.forEach(el => el.textContent = state.time.toFixed(2) + ' s');
                 draw(); animateModePreviews(); drawGraph(); drawEnergyGraph(); updateRuler();
                 animationFrameId = requestAnimationFrame(gameLoop);
@@ -447,10 +491,10 @@
             function resizeCanvas() { const container = dom.simulationWrapper; let width = container.clientWidth; if (width === 0) width = Math.max(300, window.innerWidth * 0.55); dom.canvas.width = width; dom.canvas.height = state.oscillationDirection === 'horizontal' ? width / 3 : width / 1.5; [dom.graphCanvas, dom.energyGraphCanvas].forEach(c => { c.width = c.clientWidth; c.height = c.clientHeight; }); setupSimulation(); draw(); }
             function createIndividualControls() { dom.individualParamsControls.innerHTML = ''; let massHtml = '<h4 class="text-xs text-gray-400 mt-2">Masas Individuales (kg)</h4>'; for(let i=0; i < state.numMasses; i++) { massHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">m<sub>${i+1}</sub></label><input type="range" class="individual-mass-slider" data-index="${i}" min="0.1" max="5" step="0.1" value="${state.individualMasses[i]}"><span class="w-10 text-right text-xs">${state.individualMasses[i].toFixed(1)}</span></div>`; } dom.individualParamsControls.innerHTML += massHtml; let kHtml = '<h4 class="text-xs text-gray-400 mt-2">Constantes Elásticas (N/m)</h4>'; for(let i=0; i < state.numMasses + 1; i++) { kHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">k<sub>${i+1}</sub></label><input type="range" class="individual-k-slider" data-index="${i}" min="1" max="50" step="1" value="${state.individualKs[i]}"><span class="w-10 text-right text-xs">${state.individualKs[i].toFixed(1)}</span></div>`; } dom.individualParamsControls.innerHTML += kHtml; dom.individualParamsControls.querySelectorAll('.individual-mass-slider').forEach(slider => { slider.addEventListener('input', e => { const index = parseInt(e.target.dataset.index); const value = parseFloat(e.target.value); state.individualMasses[index] = value; e.target.nextElementSibling.textContent = value.toFixed(1); setupSimulation(); }); }); dom.individualParamsControls.querySelectorAll('.individual-k-slider').forEach(slider => { slider.addEventListener('input', e => { const index = parseInt(e.target.dataset.index); const value = parseFloat(e.target.value); state.individualKs[index] = value; e.target.nextElementSibling.textContent = value.toFixed(1); setupSimulation(); }); }); }
             function handleSimModeChange() { state.simulationMode = document.querySelector('input[name="sim-mode"]:checked').value; const isNormalOrSuper = state.simulationMode === 'normal' || state.simulationMode === 'superposition'; dom.normalModesPanel.classList.toggle('hidden', !isNormalOrSuper); if (isNormalOrSuper) { if (state.simulationMode === 'normal') { dom.normalModesDescription.textContent = "Selecciona un modo para visualizar su patrón y frecuencia."; } else { dom.normalModesDescription.textContent = "Ajusta la amplitud de cada modo para crear una superposición."; } renderNormalModesList(); animateModePreviews(); } if (state.simulationMode !== 'real') { if (state.isPlaying) state.time = 0; state.masses.forEach(m => { m.x = 0; m.v = 0; }); } }
-            function handleMassCountChange(delta) { let newCount = state.numMasses + delta; newCount = Math.max(2, Math.min(8, newCount)); if (newCount === state.numMasses) return; state.numMasses = newCount; dom.massCountLabelHud.textContent = state.numMasses; state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK); if(!state.isUniform) createIndividualControls(); setupSimulation(); }
+            function handleMassCountChange(delta) { let newCount = state.numMasses + delta; newCount = Math.max(2, Math.min(8, newCount)); if (newCount === state.numMasses) return; state.numMasses = newCount; dom.massCountLabelHud.textContent = state.numMasses; state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK); state.graphedMassIndices = []; state.graphData = {}; state.energyGraphData = { total: [], individual: {} }; if(!state.isUniform) createIndividualControls(); setupSimulation(); }
             function togglePlayPause() { state.isPlaying = !state.isPlaying; dom.playPauseBtn.textContent = state.isPlaying ? 'Pausa' : 'Play'; }
-            function calculateEnergies() { let kinetic = 0, potential = 0; state.masses.forEach(mass => { kinetic += 0.5 * mass.m * (mass.v * state.pixelsPerMeter) * (mass.v * state.pixelsPerMeter); }); for (let i = 0; i < state.numMasses + 1; i++) { const stretch = (i < state.numMasses ? state.masses[i].x : 0) - (i > 0 ? state.masses[i - 1].x : 0); potential += 0.5 * state.springs[i].k * (stretch / state.pixelsPerMeter) * (stretch / state.pixelsPerMeter); } return { kinetic, potential, total: kinetic + potential }; }
-            function addDataToLog() { const energies = calculateEnergies(); const snapshot = { time: state.time, mode: state.simulationMode, numMasses: state.numMasses, damping: state.damping, kineticEnergy: energies.kinetic, potentialEnergy: energies.potential, totalEnergy: energies.total, positions: state.masses.map(m => m.x), velocities: state.masses.map(m => m.v) }; state.dataLog.push(snapshot); renderDataLog(); }
+            function calculateEnergies() { let kinetic = 0, potential = 0, individual = []; state.masses.forEach(mass => { const ke = 0.5 * mass.m * (mass.v * state.pixelsPerMeter) * (mass.v * state.pixelsPerMeter); kinetic += ke; individual.push(ke); }); for (let i = 0; i < state.numMasses + 1; i++) { const stretch = (i < state.numMasses ? state.masses[i].x : 0) - (i > 0 ? state.masses[i - 1].x : 0); potential += 0.5 * state.springs[i].k * (stretch / state.pixelsPerMeter) * (stretch / state.pixelsPerMeter); } return { kinetic, potential, total: kinetic + potential, individual }; }
+            function addDataToLog() { const energies = calculateEnergies(); const snapshot = { time: state.time, mode: state.simulationMode, numMasses: state.numMasses, damping: state.damping, kineticEnergy: energies.kinetic, potentialEnergy: energies.potential, totalEnergy: energies.total, positions: state.masses.map(m => m.x) }; state.dataLog.push(snapshot); renderDataLog(); renderDataLog(true); }
             function renderDataLog(isLarge = false) {
                 const tableHead = isLarge ? dom.largeDataTableHead : dom.dataTableHead;
                 const tableBody = isLarge ? dom.largeDataTableBody : dom.dataTableBody;
@@ -458,19 +502,17 @@
                 const firstEntry = state.dataLog[0];
                 let headers = isLarge ? `<th>Tiempo (s)</th><th>Modo</th><th>N</th><th>Amort.</th><th>Ecin (J)</th><th>Epot (J)</th><th>Etot (J)</th>` : `<th>T</th><th>M</th><th>N</th><th>Am.</th><th>Ec</th><th>Ep</th><th>Et</th>`;
                 for (let i = 0; i < firstEntry.positions.length; i++) headers += `<th>x${i + 1}(cm)</th>`;
-                for (let i = 0; i < firstEntry.velocities.length; i++) headers += `<th>v${i + 1}(cm/s)</th>`;
                 tableHead.innerHTML = `<tr>${headers}</tr>`;
                 tableBody.innerHTML = state.dataLog.map(log => {
                     let row = `<td>${log.time.toFixed(2)}</td><td>${log.mode.substring(0,4)}</td><td>${log.numMasses}</td><td>${log.damping.toFixed(2)}</td><td>${log.kineticEnergy.toExponential(2)}</td><td>${log.potentialEnergy.toExponential(2)}</td><td>${log.totalEnergy.toExponential(2)}</td>`;
                     row += log.positions.map(p => `<td>${((p / state.pixelsPerMeter) * 100).toFixed(2)}</td>`).join('');
-                    row += log.velocities.map(v => `<td>${((v / state.pixelsPerMeter) * 100).toFixed(2)}</td>`).join('');
                     return `<tr>${row}</tr>`;
                 }).join('');
             }
-            function exportDataToCsv() { if (state.dataLog.length === 0) return; let maxMasses = 0; state.dataLog.forEach(log => { if (log.numMasses > maxMasses) maxMasses = log.numMasses; }); let headers = "Tiempo (s),Modo,N Masas,Amortiguamiento,E Cinética (J),E Potencial (J),E Total (J),"; for (let i = 1; i <= maxMasses; i++) headers += `Posición m${i} (cm),`; for (let i = 1; i <= maxMasses; i++) headers += `Velocidad m${i} (cm/s),`; headers = headers.slice(0, -1) + "\n"; const csvContent = state.dataLog.map(log => { let row = [log.time.toFixed(3), log.mode, log.numMasses, log.damping.toFixed(2), log.kineticEnergy.toExponential(4), log.potentialEnergy.toExponential(4), log.totalEnergy.toExponential(4)].join(','); let positions = log.positions.map(p => ((p / state.pixelsPerMeter) * 100).toFixed(4)); while (positions.length < maxMasses) positions.push(''); let velocities = log.velocities.map(v => ((v / state.pixelsPerMeter) * 100).toFixed(4)); while (velocities.length < maxMasses) velocities.push(''); return row + ',' + positions.join(',') + ',' + velocities.join(','); }).join('\n'); const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); const url = URL.createObjectURL(blob); link.setAttribute('href', url); link.setAttribute('download', 'datos_oscilaciones.csv'); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link); }
+            function exportDataToCsv() { if (state.dataLog.length === 0) return; let maxMasses = 0; state.dataLog.forEach(log => { if (log.numMasses > maxMasses) maxMasses = log.numMasses; }); let headers = "Tiempo (s),Modo,N Masas,Amortiguamiento,E Cinética (J),E Potencial (J),E Total (J),"; for (let i = 1; i <= maxMasses; i++) headers += `Posición m${i} (cm),`; headers = headers.slice(0, -1) + "\n"; const csvContent = state.dataLog.map(log => { let row = [log.time.toFixed(3), log.mode, log.numMasses, log.damping.toFixed(2), log.kineticEnergy.toExponential(4), log.potentialEnergy.toExponential(4), log.totalEnergy.toExponential(4)].join(','); let positions = log.positions.map(p => ((p / state.pixelsPerMeter) * 100).toFixed(4)); while (positions.length < maxMasses) positions.push(''); return row + ',' + positions.join(','); }).join('\n'); const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); const url = URL.createObjectURL(blob); link.setAttribute('href', url); link.setAttribute('download', 'datos_oscilaciones.csv'); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link); }
             function getMousePos(e) { const rect = dom.canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; return { x: clientX - rect.left, y: clientY - rect.top }; }
             function checkMassHover(e) { if (state.simulationMode !== 'real' || state.isDragging) return; const pos = getMousePos(e); let hovering = false; for (const mass of state.masses) { const y_center = dom.canvas.height / 2; const massScreenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const massScreenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; const dist = Math.hypot(pos.x - massScreenX, pos.y - massScreenY); if (dist < mass.radius) { hovering = true; break; } } dom.canvas.style.cursor = hovering ? 'grab' : 'default'; }
-            function handleDragStart(e) { const pos = getMousePos(e); let didClickOnMass = false; let clickedMassIndex = -1; if (e.target === dom.rulerHandle1 || e.target === dom.rulerHandle2) { return; } state.masses.forEach((mass, i) => { const y_center = dom.canvas.height / 2; const massScreenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const massScreenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; const dist = Math.hypot(pos.x - massScreenX, pos.y - massScreenY); if (dist < mass.radius * 1.5) { didClickOnMass = true; clickedMassIndex = i; } }); if (didClickOnMass) { selectMassForGraphing(clickedMassIndex); if (state.simulationMode === 'real') { state.isDragging = true; state.draggedMassIndex = clickedMassIndex; dom.canvas.style.cursor = 'grabbing'; } if (e.type === 'touchstart') e.preventDefault(); } }
+            function handleDragStart(e) { const pos = getMousePos(e); let didClickOnMass = false; let clickedMassIndex = -1; if (e.target === dom.rulerHandle1 || e.target === dom.rulerHandle2) { return; } state.masses.forEach((mass, i) => { const y_center = dom.canvas.height / 2; const massScreenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const massScreenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; const dist = Math.hypot(pos.x - massScreenX, pos.y - massScreenY); if (dist < mass.radius * 1.5) { didClickOnMass = true; clickedMassIndex = i; } }); if (didClickOnMass) { toggleMassForGraphing(clickedMassIndex); if (state.simulationMode === 'real') { state.isDragging = true; state.draggedMassIndex = clickedMassIndex; dom.canvas.style.cursor = 'grabbing'; } if (e.type === 'touchstart') e.preventDefault(); } }
             function handleDragMove(e) { if (state.ruler.dragging) { const rect = dom.canvas.getBoundingClientRect(); const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left; const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top; state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'x1' : 'x2'] = x; state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'y1' : 'y2'] = y; return; } if (!state.isDragging || state.draggedMassIndex === -1) { checkMassHover(e); return; } if (e.type === 'touchmove') e.preventDefault(); const pos = getMousePos(e); const mass = state.masses[state.draggedMassIndex]; let newX; if (state.oscillationDirection === 'horizontal') { newX = pos.x - mass.eq_pos; const prevMass = state.masses[state.draggedMassIndex - 1]; const nextMass = state.masses[state.draggedMassIndex + 1]; if (prevMass) { const minAllowedPos = prevMass.eq_pos + prevMass.x + prevMass.radius + mass.radius; const minAllowedX = minAllowedPos - mass.eq_pos; newX = Math.max(newX, minAllowedX); } else { const minAllowedPos = 10 + mass.radius; const minAllowedX = minAllowedPos - mass.eq_pos; newX = Math.max(newX, minAllowedX); } if (nextMass) { const maxAllowedPos = nextMass.eq_pos + nextMass.x - nextMass.radius - mass.radius; const maxAllowedX = maxAllowedPos - mass.eq_pos; newX = Math.min(newX, maxAllowedX); } else { const maxAllowedPos = dom.canvas.width - 10 - mass.radius; const maxAllowedX = maxAllowedPos - mass.eq_pos; newX = Math.min(newX, maxAllowedX); } } else { newX = pos.y - (dom.canvas.height / 2); } mass.x = newX; mass.v = 0; }
             function handleDragEnd() { if (state.isDragging) { state.isDragging = false; state.draggedMassIndex = -1; checkMassHover({}); } }
             function handleUniformCheckboxChange(e) { state.isUniform = e.target.checked; dom.uniformParamsControls.classList.toggle('hidden', !state.isUniform); dom.individualParamsControls.classList.toggle('hidden', state.isUniform); const modesAvailable = state.isUniform; document.querySelectorAll('input[name="sim-mode"]').forEach(radio => { if (radio.value === 'normal' || radio.value === 'superposition') { radio.disabled = !modesAvailable; } }); if (!modesAvailable && state.simulationMode !== 'real') { document.querySelector('input[name="sim-mode"][value="real"]').checked = true; handleSimModeChange(); } if (!state.isUniform) createIndividualControls(); else setupSimulation(); }
@@ -480,13 +522,51 @@
             function showDataPopup() { renderDataLog(true); dom.dataPopupOverlay.classList.remove('hidden'); dom.dataPopupBox.classList.remove('hidden'); setTimeout(() => { dom.dataPopupOverlay.classList.remove('opacity-0'); dom.dataPopupBox.classList.remove('opacity-0'); }, 10); }
             function hideDataPopup() { dom.dataPopupOverlay.classList.add('opacity-0'); dom.dataPopupBox.classList.add('opacity-0'); setTimeout(() => { dom.dataPopupOverlay.classList.add('hidden'); dom.dataPopupBox.classList.add('hidden'); }, 300); }
             function clearData() { state.dataLog = []; renderDataLog(); renderDataLog(true); }
-            
+            function buildGraphCheckboxes() {
+                dom.graphCheckboxesContainer.innerHTML = '';
+                for (let i = 0; i < state.numMasses; i++) {
+                    const label = document.createElement('label');
+                    label.className = 'checkbox-label text-xs';
+                    label.innerHTML = `<input type="checkbox" class="graph-mass-checkbox" data-index="${i}" ${state.graphedMassIndices.includes(i) ? 'checked' : ''}>
+                                       <span class="checkmark"></span>
+                                       <span style="color:${colors[i % colors.length]}; margin-left:8px;">${i+1}</span>`;
+                    label.querySelector('input').addEventListener('change', (e) => {
+                        toggleMassForGraphing(parseInt(e.target.dataset.index));
+                    });
+                    dom.graphCheckboxesContainer.appendChild(label);
+                }
+            }
+             function buildEnergyGraphCheckboxes() {
+                dom.energyGraphCheckboxesContainer.innerHTML = '';
+                const energyTypes = ['T', ...Array.from({length: state.numMasses}, (_, i) => i)];
+                
+                energyTypes.forEach(type => {
+                    const label = document.createElement('label');
+                    label.className = 'checkbox-label text-xs';
+                    let labelText, color;
+                    if (type === 'T') { labelText = 'T'; color = 'white'; }
+                    else { labelText = `${type+1}`; color = colors[type % colors.length]; }
+
+                    label.innerHTML = `<input type="checkbox" class="energy-graph-checkbox" value="${type}" ${state.graphedEnergyIndices.includes(type) ? 'checked' : ''}>
+                                       <span class="checkmark"></span>
+                                       <span style="color:${color}; margin-left:8px;">${labelText}</span>`;
+                    
+                    label.querySelector('input').addEventListener('change', (e) => {
+                        const val = e.target.value;
+                        const idx = state.graphedEnergyIndices.indexOf(val);
+                        if(idx > -1) state.graphedEnergyIndices.splice(idx, 1);
+                        else state.graphedEnergyIndices.push(val);
+                    });
+                    dom.energyGraphCheckboxesContainer.appendChild(label);
+                });
+            }
+
             function init() {
                 window.addEventListener('resize', resizeCanvas); state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK);
                 dom.playPauseBtn.addEventListener('click', togglePlayPause);
-                dom.timeResetBtn.addEventListener('click', () => { state.time = 0; if (!state.isPlaying) { state.masses.forEach(m => { m.x = 0; m.v = 0; }); state.graphData = []; state.energyGraphData = []; } });
+                dom.timeResetBtn.addEventListener('click', () => { state.time = 0; if (!state.isPlaying) { state.masses.forEach(m => { m.x = 0; m.v = 0; }); state.graphData = {}; state.energyGraphData = { total: [], potential: [], kinetic: [], individual: {} }; state.graphedMassIndices = []; buildGraphCheckboxes(); buildEnergyGraphCheckboxes(); } });
                 dom.timeScaleSlider.addEventListener('input', (e) => state.timeScale = parseFloat(e.target.value));
-                dom.resetBtn.addEventListener('click', () => { if (state.isPlaying) togglePlayPause(); state.time = 0; state.graphData = []; state.energyGraphData = []; setupSimulation(); });
+                dom.resetBtn.addEventListener('click', () => { if (state.isPlaying) togglePlayPause(); state.time = 0; state.graphData = {}; state.energyGraphData = { total: [], potential: [], kinetic: [], individual: {} }; state.graphedMassIndices = []; setupSimulation(); });
                 dom.infoBtn.addEventListener('click', showInfoPopup); dom.popupClose.addEventListener('click', hideInfoPopup); dom.popupOverlay.addEventListener('click', hideInfoPopup);
                 dom.directionRadios.forEach(radio => radio.addEventListener('change', e => { state.oscillationDirection = e.target.value; resizeCanvas(); }));
                 dom.massCountMinusBtn.addEventListener('click', () => handleMassCountChange(-1)); dom.massCountPlusBtn.addEventListener('click', () => handleMassCountChange(1));
@@ -534,5 +614,4 @@
     </script>
 </body>
 </html>
-
 
