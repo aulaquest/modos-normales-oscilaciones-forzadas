@@ -354,11 +354,9 @@
                 constructor(eq_pos, m, color) { this.eq_pos = eq_pos; this.x = 0; this.v = 0; this.a = 0; this.m = m; this.color = color; this.radius = 12 + Math.sqrt(m) * 2; }
             }
 
-            // --- ALL HELPER FUNCTIONS ---
             function drawLine(x1, y1, x2, y2) { ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
             function getMousePos(e) { const rect = dom.canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; return { x: clientX - rect.left, y: clientY - rect.top }; }
             
-            // --- CORE SIMULATION & DRAWING ---
             function setupSimulation() {
                 state.masses = []; state.springs = [];
                 const mainAxisSize = dom.canvas.width;
@@ -390,12 +388,12 @@
                 state.normalModes.forEach((mode, index) => {
                     const isSuperposition = state.simulationMode === 'superposition'; const modeEl = document.createElement('div'); modeEl.className = `mode-item p-2 rounded-md border border-slate-600 flex flex-col sm:flex-row justify-between items-center ${!isSuperposition && state.selectedMode === index ? 'selected' : ''}`; modeEl.dataset.index = index;
                     let contentHTML = `<div class="flex-1 flex justify-between sm:justify-start sm:gap-4 items-center w-full"><div class="flex-shrink-0 flex flex-col justify-center text-xs"><span>Modo ${index + 1}</span><span class="font-semibold text-cyan-400">${(mode.omega / omega_0).toFixed(2)} ω₀</span><span class="text-gray-400">(${mode.omega.toFixed(1)} rad/s)</span></div><canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas></div>`;
-                    if (isSuperposition) { contentHTML += `<div class="w-full sm:w-24 mt-2 sm:mt-0 sm:ml-2"><div class="text-xs text-center text-gray-400">${(mode.omega).toFixed(1)} rad/s</div><input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}"></div>`; }
+                    if (isSuperposition) { contentHTML += `<div class="w-full sm:w-24 mt-2 sm:mt-0 sm:ml-2"><div id="mode-amp-value-${index}" class="text-xs text-center text-gray-400">${state.modeAmplitudes[index].toFixed(2)}</div><input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}"></div>`; }
                     modeEl.innerHTML = contentHTML;
                     if (!isSuperposition) { modeEl.classList.add('cursor-pointer'); modeEl.addEventListener('click', () => { state.selectedMode = index; if (state.isPlaying) { state.time = 0; } renderNormalModesList(); }); }
                     dom.normalModesList.appendChild(modeEl);
                 });
-                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const amplitude = parseFloat(e.target.value); state.modeAmplitudes[index] = amplitude; e.target.previousElementSibling.textContent = `${(state.normalModes[index].omega).toFixed(1)} rad/s`; if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
+                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const amplitude = parseFloat(e.target.value); state.modeAmplitudes[index] = amplitude; e.target.previousElementSibling.textContent = amplitude.toFixed(2); if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
             }
 
             function updatePhysics(dt_scaled) { if (state.simulationMode === 'real') updateRealEvolution(dt_scaled); else if (state.simulationMode === 'normal') updateNormalModeAnimation(); else if (state.simulationMode === 'superposition') updateSuperpositionEvolution(); }
@@ -430,22 +428,23 @@
                         state.graphData[idx].forEach(p => { minVal = Math.min(minVal, p.pos); maxVal = Math.max(maxVal, p.pos); });
                     }
                 });
-                const range = Math.max(0.01 / state.pixelsPerMeter, maxVal - minVal) * 100;
-                const y_center = (minVal + maxVal) / 2 * 100; const scaleY = plotHeight / (range * 1.2 || 1);
+                const absMax = Math.max(Math.abs(minVal), Math.abs(maxVal));
+                const range = Math.max(0.01 / state.pixelsPerMeter, absMax * 2) * 100;
+                const scaleY = plotHeight / (range || 1);
                 state.graphedMassIndices.forEach(idx => {
                     const data = state.graphData[idx];
                     if(!data || data.length < 2) return;
                     graphCtx.strokeStyle = colors[idx % colors.length]; graphCtx.lineWidth = 2; graphCtx.beginPath();
-                    for (let i = 0; i < data.length; i++) { const screenX = padding.left + (i / (data.length - 1)) * plotWidth; const screenY = (h / 2) - ((data[i].pos*100) - y_center) * scaleY; if (i === 0) graphCtx.moveTo(screenX, screenY); else graphCtx.lineTo(screenX, screenY); }
+                    for (let i = 0; i < data.length; i++) { const screenX = padding.left + (i / (data.length - 1)) * plotWidth; const screenY = (h / 2) - (data[i].pos*100) * scaleY; if (i === 0) graphCtx.moveTo(screenX, screenY); else graphCtx.lineTo(screenX, screenY); }
                     graphCtx.stroke();
                 });
                 graphCtx.strokeStyle = '#64748b'; graphCtx.lineWidth = 1; graphCtx.beginPath(); graphCtx.moveTo(padding.left, padding.top); graphCtx.lineTo(padding.left, h - padding.bottom); graphCtx.lineTo(w - padding.right, h - padding.bottom); graphCtx.stroke();
-                graphCtx.fillStyle = '#94a3b8'; graphCtx.font = '10px Inter'; const maxLabel = ((y_center + (range * 0.6))).toFixed(1); const minLabel = ((y_center - (range * 0.6))).toFixed(1);
+                graphCtx.fillStyle = '#94a3b8'; graphCtx.font = '10px Inter'; const maxLabel = (range / 2).toFixed(1); const minLabel = (-range / 2).toFixed(1);
                 graphCtx.fillText(maxLabel + ' cm', 0, padding.top + 3); graphCtx.fillText(minLabel + ' cm', 0, h - padding.bottom);
             }
 
             function drawEnergyGraph() {
-                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (state.energyGraphData.total.length < 2) return;
+                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (!state.energyGraphData || state.energyGraphData.total.length < 2) return;
                 const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height; const padding = { top: 10, bottom: 20, left: 35, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
                 let maxE = 0; 
                 state.graphedEnergyIndices.forEach(idx => {
