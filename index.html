@@ -1,1 +1,538 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Oscilaciones Acopladas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .control-panel {
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+        }
+        .control-panel::-webkit-scrollbar { width: 6px; }
+        .control-panel::-webkit-scrollbar-track { background: transparent; }
+        .control-panel::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
+        
+        .radio-label { position: relative; cursor: pointer; user-select: none; padding-left: 25px; display: inline-flex; align-items: center; height: 24px;}
+        .radio-label input { position: absolute; opacity: 0; cursor: pointer; }
+        .radio-dot { position: absolute; top: 2px; left: 0; height: 20px; width: 20px; background-color: #334155; border: 1px solid #475569; border-radius: 50%; transition: background-color: 0.2s; }
+        .radio-label:hover input ~ .radio-dot { background-color: #475569; }
+        .radio-label input:checked ~ .radio-dot { background-color: #4f46e5; border-color: #4f46e5; }
+        .radio-label input[disabled] ~ .radio-dot { background-color: #1e293b; border-color: #334155; cursor: not-allowed; }
+        .radio-dot:after { content: ""; position: absolute; display: none; top: 5px; left: 5px; width: 10px; height: 10px; border-radius: 50%; background: white; }
+        .radio-label input:checked ~ .radio-dot:after { display: block; }
+        
+        .checkbox-label { position: relative; cursor: pointer; user-select: none; padding-left: 30px; }
+        .checkbox-label input { position: absolute; opacity: 0; cursor: pointer; height: 0; width: 0; }
+        .checkmark { position: absolute; top: 2px; left: 0; height: 20px; width: 20px; background-color: #334155; border: 1px solid #475569; border-radius: 4px; transition: background-color: 0.2s; }
+        .checkbox-label:hover input ~ .checkmark { background-color: #475569; }
+        .checkbox-label input:checked ~ .checkmark { background-color: #4f46e5; }
+        .checkmark:after { content: ""; position: absolute; display: none; left: 6px; top: 2px; width: 5px; height: 10px; border: solid white; border-width: 0 3px 3px 0; transform: rotate(45deg); }
+        .checkbox-label input:checked ~ .checkmark:after { display: block; }
+
+        #popup-overlay, #data-popup-overlay { transition: opacity 0.3s; }
+        #popup-box, #data-popup-box { transition: opacity 0.3s, transform 0.3s; max-height: 80vh; overflow-y: auto; }
+        #popup-box::-webkit-scrollbar, #data-popup-box::-webkit-scrollbar { width: 6px; }
+        #popup-box::-webkit-scrollbar-track, #data-popup-box::-webkit-scrollbar-track { background: #1e293b; }
+        #popup-box::-webkit-scrollbar-thumb, #data-popup-box::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
+        #popup-box.hidden, #data-popup-box.hidden { transform: translate(-50%, -50%) scale(0.95); }
+
+        .mode-item { transition: background-color 0.2s, border-color 0.2s; }
+        .mode-item.selected { background-color: #3730a3; border-color: #4f46e5; }
+        
+        .mode-item-canvas {
+            width: 100px;
+            height: 40px;
+            background-color: #1e293b;
+            border-radius: 4px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none;
+            width: 100%; height: 8px;
+            background: #334155; border-radius: 5px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 20px; height: 20px;
+            background: #a5b4fc; cursor: pointer; border-radius: 50%;
+            border: 2px solid #4f46e5;
+        }
+        .number-input-btn {
+            background-color: #334155; color: #e2e8f0;
+            width: 28px; height: 28px;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 1.2rem; line-height: 1;
+            transition: background-color 0.2s;
+        }
+        .number-input-btn:hover { background-color: #475569; }
+        
+        #data-table-container, #large-data-table-container { max-height: 200px; overflow-y: auto; border: 1px solid #334155; border-radius: 6px; }
+        #large-data-table-container { max-height: 50vh; }
+        #data-table-container::-webkit-scrollbar, #large-data-table-container::-webkit-scrollbar { width: 5px; }
+        #data-table-container::-webkit-scrollbar-track, #large-data-table-container::-webkit-scrollbar-track { background: #1e293b; }
+        #data-table-container::-webkit-scrollbar-thumb, #large-data-table-container::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
+        #data-table, #large-data-table { width: 100%; text-align: center; }
+        #data-table { font-size: 0.7rem; }
+        #large-data-table { font-size: 0.8rem; }
+        #data-table th, #data-table td, #large-data-table th, #large-data-table td { padding: 4px 2px; }
+        #data-table thead, #large-data-table thead { position: sticky; top: 0; background-color: #1e293b; }
+
+        .ruler { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
+        .ruler-handle {
+            position: absolute; width: 16px; height: 16px; border-radius: 50%;
+            background-color: rgba(250, 204, 21, 0.8); border: 2px solid white;
+            cursor: move; pointer-events: all;
+            box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+        }
+        .ruler-line { position: absolute; background-color: rgba(250, 204, 21, 0.8); height: 2px; transform-origin: left center; }
+        .ruler-text {
+            position: absolute; background-color: rgba(15, 23, 42, 0.8);
+            color: #fbbf24; font-size: 12px; padding: 2px 6px;
+            border-radius: 4px; border: 1px solid #fbbf24;
+        }
+    </style>
+</head>
+<body class="text-gray-300 flex flex-col md:flex-row">
+
+    <!-- Columna de Simulación (60%) -->
+    <div class="w-full md:w-[60%] flex flex-col p-4">
+        <div id="info-hud" class="w-full max-w-2xl mx-auto bg-slate-900/70 backdrop-blur-sm p-3 rounded-lg z-20 border border-slate-700 shadow-lg mb-4 flex justify-between items-center">
+            <div class="flex flex-col items-center gap-2">
+                 <label class="text-xs text-gray-400">Número de Masas</label>
+                 <div class="flex items-center gap-3">
+                    <button id="mass-count-minus" class="number-input-btn">-</button>
+                    <span id="mass-count-label-hud" class="font-bold text-white text-xl w-8 text-center">4</span>
+                    <button id="mass-count-plus" class="number-input-btn">+</button>
+                 </div>
+            </div>
+            <div class="flex flex-col items-center gap-2 text-xs">
+                <label class="text-gray-400">Tipo de Onda</label>
+                <div class="flex gap-4">
+                    <label class="radio-label"><input type="radio" name="direction" value="horizontal" checked>Longitudinal<span class="radio-dot"></span></label>
+                    <label class="radio-label"><input type="radio" name="direction" value="vertical">Transversal<span class="radio-dot"></span></label>
+                </div>
+            </div>
+        </div>
+        <div id="simulation-wrapper" class="relative flex-grow flex flex-col items-center justify-center w-full max-w-2xl mx-auto">
+            <canvas id="simulation-canvas" class="w-full rounded-lg bg-slate-800/20 border border-slate-700"></canvas>
+            <div id="ruler-container" class="ruler hidden">
+                <div id="ruler-handle1" class="ruler-handle"></div>
+                <div id="ruler-handle2" class="ruler-handle"></div>
+                <div id="ruler-line" class="ruler-line"></div>
+                <div id="ruler-text" class="ruler-text">0.00 cm</div>
+            </div>
+        </div>
+         <div id="graph-panel" class="w-full max-w-2xl mx-auto mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg">
+                <h4 id="graph-title" class="text-sm font-bold text-sky-400 mb-2 text-center">Posición vs. Tiempo (Clic en masa)</h4>
+                <canvas id="graph-canvas" class="w-full h-32 rounded bg-slate-800/20"></canvas>
+             </div>
+             <div class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg">
+                <h4 class="text-sm font-bold text-sky-400 mb-2 text-center">Energía vs. Tiempo</h4>
+                <canvas id="energy-graph-canvas" class="w-full h-32 rounded bg-slate-800/20"></canvas>
+             </div>
+         </div>
+    </div>
+    
+    <!-- Popups -->
+    <div id="popup-overlay" class="fixed inset-0 bg-black/50 z-40 hidden opacity-0"></div>
+    <div id="popup-box" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-600 rounded-lg p-6 z-50 hidden opacity-0 w-full max-w-2xl">
+        <h3 id="popup-title" class="text-xl font-bold text-sky-400 mb-4">Guía de la Simulación</h3>
+        <div id="popup-message" class="text-gray-300 mb-4 text-sm space-y-4"></div>
+        <button id="popup-close" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+
+    <div id="data-popup-overlay" class="fixed inset-0 bg-black/50 z-40 hidden opacity-0"></div>
+    <div id="data-popup-box" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-600 rounded-lg p-6 z-50 hidden opacity-0 w-full max-w-4xl">
+        <h3 class="text-xl font-bold text-sky-400 mb-4">Tabla de Datos Completa</h3>
+        <div id="large-data-table-container">
+            <table id="large-data-table">
+                <thead id="large-data-table-head"></thead>
+                <tbody id="large-data-table-body"></tbody>
+            </table>
+        </div>
+        <div class="flex gap-4 mt-4">
+            <button id="large-export-csv-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-all">Exportar CSV</button>
+            <button id="large-clear-data-btn" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-lg transition-all">Limpiar Tabla</button>
+        </div>
+        <button id="data-popup-close" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+
+    <!-- Panel de Controles (40%) -->
+    <div class="w-full md:w-[40%] control-panel p-5 z-10 border-t md:border-t-0 md:border-l border-slate-800 md:h-screen md:sticky md:top-0 md:overflow-y-auto flex flex-col">
+        <div class="flex justify-start gap-2 pb-4 border-b border-slate-700 mb-4">
+            <button id="info-btn" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-md transition flex-grow">Info y Guía</button>
+            <button id="reset-btn" class="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold text-xs rounded-md transition flex-grow">Reiniciar Simulación</button>
+        </div>
+        <div class="space-y-4 flex-grow w-full">
+            <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
+                <h3 class="text-sm font-bold text-sky-400 mb-2">Control de Tiempo</h3>
+                <p class="text-2xl text-center font-mono font-semibold text-cyan-400" id="time-display">0.00 s</p>
+                <div class="flex items-center justify-center gap-3">
+                    <button id="play-pause-btn" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-md transition w-24">Play</button>
+                    <button id="time-reset-btn" class="px-4 py-1.5 bg-slate-600 hover:bg-slate-700 text-white font-semibold text-xs rounded-md transition">Reiniciar</button>
+                </div>
+                 <div class="flex items-center gap-2 text-xs text-gray-400 pt-2">
+                    <span>Lento</span>
+                    <input type="range" id="time-scale-slider" min="0.1" max="2" step="0.1" value="1" class="w-full">
+                    <span>Rápido</span>
+                </div>
+            </div>
+            <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-sky-400">Parámetros del Sistema</h3>
+                    <label class="checkbox-label text-xs">
+                        <input type="checkbox" id="uniform-params-checkbox" checked>
+                        <span class="checkmark"></span>
+                        Igualar todos
+                    </label>
+                </div>
+                <div id="uniform-params-controls">
+                    <div><label for="uniform-mass-slider" class="text-xs text-gray-400">Masa (m): <span id="uniform-mass-label" class="font-bold text-white">1.0</span> kg</label><input type="range" id="uniform-mass-slider" min="0.1" max="5" step="0.1" value="1.0"></div>
+                    <div><label for="uniform-k-slider" class="text-xs text-gray-400">Constante Elástica (k): <span id="uniform-k-label" class="font-bold text-white">10.0</span> N/m</label><input type="range" id="uniform-k-slider" min="1" max="50" step="1" value="10"></div>
+                </div>
+                <div id="individual-params-controls" class="hidden space-y-2"></div>
+                <div><label for="damping-slider" class="text-xs text-gray-400">Amortiguamiento: <span id="damping-label" class="font-bold text-white">0.00</span></label><input type="range" id="damping-slider" min="0" max="0.5" step="0.01" value="0"></div>
+            </div>
+             <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
+                <h3 class="text-sm font-bold text-sky-400">Herramientas de Visualización</h3>
+                <label class="checkbox-label text-xs">
+                    <input type="checkbox" id="ruler-checkbox">
+                    <span class="checkmark"></span>
+                    Mostrar Regla
+                </label>
+            </div>
+            <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
+                 <h3 class="text-sm font-bold text-sky-400 mb-2">Modo de Simulación</h3>
+                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <label class="radio-label text-xs"><input type="radio" name="sim-mode" value="real" checked>Real<span class="radio-dot"></span></label>
+                    <label class="radio-label text-xs"><input type="radio" name="sim-mode" value="normal">Normal<span class="radio-dot"></span></label>
+                    <label class="radio-label text-xs"><input type="radio" name="sim-mode" value="superposition">Superposición<span class="radio-dot"></span></label>
+                 </div>
+                 <div id="normal-modes-panel" class="hidden pt-2 border-t border-slate-700"><p id="normal-modes-description" class="text-xs text-gray-400 mb-2"></p><div id="normal-modes-list" class="space-y-2"></div></div>
+            </div>
+            <div id="forced-oscillator-panel" class="bg-slate-800/50 p-3 rounded-lg space-y-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-sky-400">Oscilador Forzado</h3>
+                    <label class="checkbox-label text-xs">
+                        <input type="checkbox" id="forced-oscillator-checkbox">
+                        <span class="checkmark"></span>
+                        Activar
+                    </label>
+                </div>
+                <div id="forced-oscillator-controls" class="hidden space-y-2 pt-2 border-t border-slate-700">
+                    <div>
+                        <label for="forcing-amplitude-slider" class="text-xs text-gray-400">Amplitud Fuerza (F₀): <span id="forcing-amplitude-label" class="font-bold text-white">1.0</span> N</label>
+                        <input type="range" id="forcing-amplitude-slider" min="0" max="10" step="0.1" value="1.0">
+                    </div>
+                    <div>
+                        <label for="forcing-frequency-slider" class="text-xs text-gray-400">Frecuencia Forzada (ωd): <span id="forcing-frequency-label" class="font-bold text-white">1.00</span> ω₀</label>
+                        <input type="range" id="forcing-frequency-slider" min="0.1" max="3" step="0.05" value="1.0">
+                    </div>
+                </div>
+            </div>
+            <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
+                <h3 class="text-sm font-bold text-sky-400 mb-2">Registro de Datos</h3>
+                <div class="flex gap-2">
+                    <button id="add-data-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-all text-sm">Añadir Datos</button>
+                    <button id="view-data-btn" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-4 rounded-lg transition-all text-sm">Ver Tabla Completa</button>
+                </div>
+                <div id="data-table-container"><table id="data-table"><thead id="data-table-head"></thead><tbody id="data-table-body"></tbody></table></div>
+            </div>
+        </div>
+        <footer class="p-2 text-center text-xs text-gray-500 z-20 mt-auto pt-4">Simulación creada por <a href="https://aulaquest.com" target="_blank" rel="noopener noreferrer" class="underline hover:text-indigo-400">Aulaquest</a></footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dom = {
+                canvas: document.getElementById('simulation-canvas'),
+                simulationWrapper: document.getElementById('simulation-wrapper'),
+                timeDisplay: document.querySelectorAll('#time-display'),
+                playPauseBtn: document.getElementById('play-pause-btn'),
+                timeResetBtn: document.getElementById('time-reset-btn'),
+                timeScaleSlider: document.getElementById('time-scale-slider'),
+                infoBtn: document.getElementById('info-btn'),
+                resetBtn: document.getElementById('reset-btn'),
+                popupOverlay: document.getElementById('popup-overlay'),
+                popupBox: document.getElementById('popup-box'),
+                popupClose: document.getElementById('popup-close'),
+                popupMessage: document.getElementById('popup-message'),
+                directionRadios: document.querySelectorAll('input[name="direction"]'),
+                massCountMinusBtn: document.getElementById('mass-count-minus'),
+                massCountPlusBtn: document.getElementById('mass-count-plus'),
+                massCountLabelHud: document.getElementById('mass-count-label-hud'),
+                uniformParamsCheckbox: document.getElementById('uniform-params-checkbox'),
+                uniformParamsControls: document.getElementById('uniform-params-controls'),
+                individualParamsControls: document.getElementById('individual-params-controls'),
+                uniformMassSlider: document.getElementById('uniform-mass-slider'),
+                uniformMassLabel: document.getElementById('uniform-mass-label'),
+                uniformKSlider: document.getElementById('uniform-k-slider'),
+                uniformKLabel: document.getElementById('uniform-k-label'),
+                dampingSlider: document.getElementById('damping-slider'),
+                dampingLabel: document.getElementById('damping-label'),
+                simModeRadios: document.querySelectorAll('input[name="sim-mode"]'),
+                normalModesPanel: document.getElementById('normal-modes-panel'),
+                normalModesDescription: document.getElementById('normal-modes-description'),
+                normalModesList: document.getElementById('normal-modes-list'),
+                addDataBtn: document.getElementById('add-data-btn'),
+                viewDataBtn: document.getElementById('view-data-btn'),
+                dataTableHead: document.getElementById('data-table-head'),
+                dataTableBody: document.getElementById('data-table-body'),
+                graphCanvas: document.getElementById('graph-canvas'),
+                graphTitle: document.getElementById('graph-title'),
+                energyGraphCanvas: document.getElementById('energy-graph-canvas'),
+                rulerCheckbox: document.getElementById('ruler-checkbox'),
+                rulerContainer: document.getElementById('ruler-container'),
+                rulerHandle1: document.getElementById('ruler-handle1'),
+                rulerHandle2: document.getElementById('ruler-handle2'),
+                rulerLine: document.getElementById('ruler-line'),
+                rulerText: document.getElementById('ruler-text'),
+                dataPopupOverlay: document.getElementById('data-popup-overlay'),
+                dataPopupBox: document.getElementById('data-popup-box'),
+                dataPopupClose: document.getElementById('data-popup-close'),
+                largeDataTableHead: document.getElementById('large-data-table-head'),
+                largeDataTableBody: document.getElementById('large-data-table-body'),
+                largeExportCsvBtn: document.getElementById('large-export-csv-btn'),
+                largeClearDataBtn: document.getElementById('large-clear-data-btn'),
+                forcedOscillatorCheckbox: document.getElementById('forced-oscillator-checkbox'),
+                forcedOscillatorControls: document.getElementById('forced-oscillator-controls'),
+                forcingAmplitudeSlider: document.getElementById('forcing-amplitude-slider'),
+                forcingAmplitudeLabel: document.getElementById('forcing-amplitude-label'),
+                forcingFrequencySlider: document.getElementById('forcing-frequency-slider'),
+                forcingFrequencyLabel: document.getElementById('forcing-frequency-label'),
+            };
+
+            const ctx = dom.canvas.getContext('2d');
+            const graphCtx = dom.graphCanvas.getContext('2d');
+            const energyGraphCtx = dom.energyGraphCanvas.getContext('2d');
+            let animationFrameId;
+
+            let state = {
+                numMasses: 4, masses: [], springs: [],
+                isPlaying: false, time: 0, timeScale: 1, dt: 1 / 60,
+                damping: 0.0,
+                isUniform: true, uniformMass: 1.0, uniformK: 10.0,
+                simulationMode: 'real',
+                oscillationDirection: 'horizontal',
+                selectedMode: 0, normalModes: [], modeAmplitudes: [],
+                isDragging: false, draggedMassIndex: -1,
+                individualMasses: [], individualKs: [],
+                dataLog: [],
+                graphedMassIndex: -1, graphData: [], energyGraphData: [],
+                pixelsPerMeter: 1, 
+                ruler: { x1: 50, y1: 50, x2: 200, y2: 50, dragging: null },
+                isForced: false,
+                forcingAmplitude: 1.0,
+                forcingFrequency: 1.0, 
+            };
+
+            const colors = ['#f87171', '#fb923c', '#facc15', '#a3e635', '#4ade80', '#34d399', '#22d3ee', '#60a5fa'];
+            
+            class Mass {
+                constructor(eq_pos, m, color) { this.eq_pos = eq_pos; this.x = 0; this.v = 0; this.a = 0; this.m = m; this.color = color; this.radius = 12 + Math.sqrt(m) * 2; }
+            }
+
+            function drawLine(x1, y1, x2, y2) { ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+            
+            function setupSimulation() {
+                state.masses = []; state.springs = [];
+                const mainAxisSize = dom.canvas.width;
+                state.pixelsPerMeter = mainAxisSize;
+                const segmentSize = mainAxisSize / (state.numMasses + 1);
+                for (let i = 0; i < state.numMasses; i++) { const massValue = state.isUniform ? state.uniformMass : state.individualMasses[i]; state.masses.push(new Mass(segmentSize * (i + 1), massValue, colors[i % colors.length])); }
+                for (let i = 0; i < state.numMasses + 1; i++) { const kValue = state.isUniform ? state.uniformK : state.individualKs[i]; state.springs.push({ k: kValue }); }
+                state.modeAmplitudes = new Array(state.numMasses).fill(0);
+                calculateNormalModes();
+            }
+            
+            function calculateNormalModes() {
+                state.normalModes = []; const N = state.numMasses, k = state.uniformK, m = state.uniformMass;
+                if (!state.isUniform) { dom.normalModesList.innerHTML = `<p class="text-xs text-amber-400 p-2">El cálculo de modos solo está disponible para parámetros uniformes.</p>`; return; }
+                for (let n = 1; n <= N; n++) { let omega = 2 * Math.sqrt(k / m) * Math.sin(n * Math.PI / (2 * (N + 1))); const amplitudes = []; for (let i = 1; i <= N; i++) { amplitudes.push(Math.sin(i * n * Math.PI / (N + 1))); } state.normalModes.push({ omega, amplitudes }); }
+                renderNormalModesList();
+            }
+            
+            function drawModePattern(canvas, amplitudes, time, direction) {
+                if (!canvas) return; const c = canvas.getContext('2d'), w = canvas.width, h = canvas.height; c.clearRect(0, 0, w, h);
+                const phase = Math.cos(time * 5);
+                if (direction === 'vertical') { c.strokeStyle = '#60a5fa'; c.lineWidth = 2; const allAmps = [0, ...amplitudes, 0]; const numPoints = allAmps.length; const dx = w / (numPoints - 1); const y_center = h / 2, A = h * 0.4; c.beginPath(); c.moveTo(0, y_center); for (let i = 1; i < numPoints; i++) c.lineTo(i * dx, y_center - allAmps[i] * A * phase); c.stroke(); c.fillStyle = '#60a5fa'; for (let i = 1; i < numPoints - 1; i++) { c.beginPath(); c.arc(i * dx, y_center - allAmps[i] * A * phase, 3, 0, 2 * Math.PI); c.fill(); } } else { c.strokeStyle = '#94a3b8'; c.lineWidth = 1; const y_center = h / 2; const dx = w / (amplitudes.length + 1); const A = dx * 0.35; const particleXCoords = amplitudes.map((amp, i) => (i + 1) * dx + amp * A * phase); c.beginPath(); c.moveTo(0, y_center); particleXCoords.forEach(x => c.lineTo(x, y_center)); c.lineTo(w, y_center); c.stroke(); c.fillStyle = '#60a5fa'; particleXCoords.forEach(x => { c.beginPath(); c.arc(x, y_center, 3, 0, 2 * Math.PI); c.fill(); }); }
+            }
+            
+            function renderNormalModesList() {
+                dom.normalModesList.innerHTML = ''; const omega_0 = (state.uniformK > 0 && state.uniformMass > 0) ? Math.sqrt(state.uniformK / state.uniformMass) : 1;
+                state.normalModes.forEach((mode, index) => {
+                    const isSuperposition = state.simulationMode === 'superposition'; const modeEl = document.createElement('div'); modeEl.className = `mode-item p-2 rounded-md border border-slate-600 flex flex-col sm:flex-row justify-between items-center ${!isSuperposition && state.selectedMode === index ? 'selected' : ''}`; modeEl.dataset.index = index;
+                    let contentHTML = `<div class="flex-1 flex justify-between sm:justify-start sm:gap-4 items-center w-full"><div class="flex-shrink-0 flex flex-col justify-center"><span class="text-xs">Modo ${index + 1}</span><span class="text-sm font-semibold text-cyan-400">${(mode.omega / omega_0).toFixed(2)} ω₀</span></div><canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas></div>`;
+                    if (isSuperposition) { contentHTML += `<div class="w-full sm:w-24 mt-2 sm:mt-0 sm:ml-2"><input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}"></div>`; }
+                    modeEl.innerHTML = contentHTML;
+                    if (!isSuperposition) { modeEl.classList.add('cursor-pointer'); modeEl.addEventListener('click', () => { state.selectedMode = index; if (state.isPlaying) { state.time = 0; } renderNormalModesList(); }); }
+                    dom.normalModesList.appendChild(modeEl);
+                });
+                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const amplitude = parseFloat(e.target.value); state.modeAmplitudes[index] = amplitude; if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
+            }
+
+            function updatePhysics(dt_scaled) { if (state.simulationMode === 'real') updateRealEvolution(dt_scaled); else if (state.simulationMode === 'normal') updateNormalModeAnimation(); else if (state.simulationMode === 'superposition') updateSuperpositionEvolution(); }
+            function updateRealEvolution(dt_scaled) { const forces = new Array(state.numMasses).fill(0); for (let i = 0; i < state.numMasses + 1; i++) { const spring = state.springs[i]; const prevDisp = (i === 0) ? 0 : state.masses[i - 1].x; const nextDisp = (i === state.numMasses) ? 0 : state.masses[i].x; const stretch = nextDisp - prevDisp; const force = spring.k * stretch; if (i > 0) forces[i - 1] += force; if (i < state.numMasses) forces[i] -= force; } if (state.isForced && state.normalModes.length > 0) { const fundamentalOmega = state.normalModes[0].omega; const drivingForce = state.forcingAmplitude * Math.cos(state.forcingFrequency * fundamentalOmega * state.time); forces[0] += drivingForce; } for (let i = 0; i < state.numMasses; i++) { if (state.isDragging && state.draggedMassIndex === i) continue; const mass = state.masses[i]; mass.a = (forces[i] - state.damping * mass.v) / mass.m; mass.v += mass.a * dt_scaled; mass.x += mass.v * dt_scaled; } }
+            function updateNormalModeAnimation() { const mode = state.normalModes[state.selectedMode]; if (!mode) return; const A = (state.oscillationDirection === 'horizontal' ? dom.canvas.width : dom.canvas.height) / (state.numMasses * 4); state.masses.forEach((mass, i) => { mass.x = A * mode.amplitudes[i] * Math.cos(mode.omega * state.time); mass.v = -A * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time); }); }
+            function updateSuperpositionEvolution() { state.masses.forEach(m => { m.x = 0; m.v = 0; }); const A_base = (state.oscillationDirection === 'horizontal' ? dom.canvas.width : dom.canvas.height) / (state.numMasses * 4); state.normalModes.forEach((mode, n) => { const amp = state.modeAmplitudes[n] * A_base; if (amp === 0) return; state.masses.forEach((mass, i) => { mass.x += amp * mode.amplitudes[i] * Math.cos(mode.omega * state.time); mass.v += -amp * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time); }); }); }
+            
+            function draw() {
+                ctx.clearRect(0, 0, dom.canvas.width, dom.canvas.height); if (state.masses.length === 0) return; const y_center = dom.canvas.height / 2;
+                ctx.fillStyle = '#64748b'; ctx.fillRect(0, y_center - 50, 10, 100); ctx.fillRect(dom.canvas.width - 10, y_center - 50, 10, 100);
+                if (state.isForced && state.normalModes.length > 0) { const fundamentalOmega = state.normalModes[0].omega; const actuatorOffset = 10 * Math.cos(state.forcingFrequency * fundamentalOmega * state.time); ctx.fillStyle = '#a5b4fc'; if (state.oscillationDirection === 'horizontal') { ctx.fillRect(0, y_center - 40, 15 + actuatorOffset, 80); } else { ctx.fillRect(0, y_center - 40 + actuatorOffset, 10, 80); } }
+                if (state.oscillationDirection === 'horizontal') { let last_x = 10; state.masses.forEach((mass) => { drawLine(last_x, y_center, mass.eq_pos + mass.x, y_center); last_x = mass.eq_pos + mass.x; }); drawLine(last_x, y_center, dom.canvas.width - 10, y_center); } else { let last_pos = { x: 10, y: y_center }; state.masses.forEach(mass => { drawLine(last_pos.x, last_pos.y, mass.eq_pos, y_center + mass.x); last_pos = { x: mass.eq_pos, y: y_center + mass.x }; }); drawLine(last_pos.x, last_pos.y, dom.canvas.width - 10, y_center); }
+                state.masses.forEach((mass, i) => { const screenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const screenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; ctx.beginPath(); ctx.arc(screenX, screenY, mass.radius, 0, Math.PI * 2); ctx.fillStyle = mass.color; ctx.fill(); if (i === state.graphedMassIndex) { ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke(); } });
+            }
+
+            function animateModePreviews() { if (state.simulationMode === 'real' || state.normalModes.length === 0) return; state.normalModes.forEach((mode, index) => { drawModePattern(document.getElementById(`mode-canvas-${index}`), mode.amplitudes, state.time, state.oscillationDirection); }); }
+            
+            function selectMassForGraphing(index) { state.graphedMassIndex = index; state.graphData = []; dom.graphTitle.textContent = `Posición: Masa ${index + 1}`; }
+            
+            function drawGraph() {
+                graphCtx.clearRect(0, 0, dom.graphCanvas.width, dom.graphCanvas.height); if (state.graphedMassIndex === -1 || state.graphData.length < 2) return;
+                const w = dom.graphCanvas.width, h = dom.graphCanvas.height; const padding = { top: 10, bottom: 20, left: 30, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
+                let minVal = 0, maxVal = 0; state.graphData.forEach(p => { minVal = Math.min(minVal, p.pos); maxVal = Math.max(maxVal, p.pos); });
+                const range = Math.max(0.01 / state.pixelsPerMeter, maxVal - minVal) * 100;
+                const y_center = (minVal + maxVal) / 2 * 100; const scaleY = plotHeight / (range * 1.2 || 1);
+                graphCtx.strokeStyle = colors[state.graphedMassIndex % colors.length]; graphCtx.lineWidth = 2; graphCtx.beginPath();
+                for (let i = 0; i < state.graphData.length; i++) { const screenX = padding.left + (i / (state.graphData.length - 1)) * plotWidth; const screenY = (h / 2) - ((state.graphData[i].pos*100) - y_center) * scaleY; if (i === 0) graphCtx.moveTo(screenX, screenY); else graphCtx.lineTo(screenX, screenY); }
+                graphCtx.stroke();
+                graphCtx.strokeStyle = '#64748b'; graphCtx.lineWidth = 1; graphCtx.beginPath(); graphCtx.moveTo(padding.left, padding.top); graphCtx.lineTo(padding.left, h - padding.bottom); graphCtx.lineTo(w - padding.right, h - padding.bottom); graphCtx.stroke();
+                graphCtx.fillStyle = '#94a3b8'; graphCtx.font = '10px Inter'; const maxLabel = ((y_center + (range * 0.6))).toFixed(1); const minLabel = ((y_center - (range * 0.6))).toFixed(1);
+                graphCtx.fillText(maxLabel + ' cm', 0, padding.top + 3); graphCtx.fillText(minLabel + ' cm', 0, h - padding.bottom);
+            }
+
+            function drawEnergyGraph() {
+                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (state.energyGraphData.length < 2) return;
+                const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height; const padding = { top: 10, bottom: 20, left: 30, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
+                let maxE = 0; state.energyGraphData.forEach(p => { maxE = Math.max(maxE, p.total); }); maxE = Math.max(0.001, maxE);
+                const scaleY = plotHeight / maxE;
+                ['kinetic', 'potential', 'total'].forEach((type, i) => {
+                    energyGraphCtx.strokeStyle = [ '#fb923c', '#60a5fa', 'white'][i]; energyGraphCtx.lineWidth = (type === 'total' ? 2 : 1.5);
+                    energyGraphCtx.beginPath();
+                    for (let j = 0; j < state.energyGraphData.length; j++) {
+                        const screenX = padding.left + (j / (state.energyGraphData.length - 1)) * plotWidth;
+                        const screenY = h - padding.bottom - state.energyGraphData[j][type] * scaleY;
+                        if (j === 0) energyGraphCtx.moveTo(screenX, screenY); else energyGraphCtx.lineTo(screenX, screenY);
+                    }
+                    energyGraphCtx.stroke();
+                });
+                energyGraphCtx.strokeStyle = '#64748b'; energyGraphCtx.lineWidth = 1; energyGraphCtx.beginPath(); energyGraphCtx.moveTo(padding.left, padding.top); energyGraphCtx.lineTo(padding.left, h - padding.bottom); energyGraphCtx.lineTo(w - padding.right, h - padding.bottom); energyGraphCtx.stroke();
+                energyGraphCtx.fillStyle = '#94a3b8'; energyGraphCtx.font = '10px Inter';
+                energyGraphCtx.fillText((maxE * 1000).toFixed(1) + ' mJ', 0, padding.top + 3); energyGraphCtx.fillText('0', 15, h - padding.bottom);
+            }
+            
+            function updateRuler() { if (dom.rulerContainer.classList.contains('hidden')) return; const { x1, y1, x2, y2 } = state.ruler; dom.rulerHandle1.style.transform = `translate(${x1 - 8}px, ${y1 - 8}px)`; dom.rulerHandle2.style.transform = `translate(${x2 - 8}px, ${y2 - 8}px)`; const dx = x2 - x1, dy = y2 - y1; const distPx = Math.hypot(dx, dy); const angle = Math.atan2(dy, dx) * 180 / Math.PI; dom.rulerLine.style.width = `${distPx}px`; dom.rulerLine.style.transform = `translate(${x1}px, ${y1}px) rotate(${angle}deg)`; const distMeters = distPx / state.pixelsPerMeter; dom.rulerText.textContent = `${(distMeters * 100).toFixed(2)} cm`; dom.rulerText.style.transform = `translate(${(x1 + x2) / 2}px, ${(y1 + y2) / 2 - 20}px)`; }
+            
+            function gameLoop() {
+                if (state.isPlaying) { const dt_scaled = state.dt * state.timeScale; state.time += dt_scaled; updatePhysics(dt_scaled); if (state.graphedMassIndex !== -1) { state.graphData.push({ time: state.time, pos: state.masses[state.graphedMassIndex].x }); if (state.graphData.length > 300) state.graphData.shift(); } const energies = calculateEnergies(); state.energyGraphData.push(energies); if (state.energyGraphData.length > 300) state.energyGraphData.shift(); }
+                dom.timeDisplay.forEach(el => el.textContent = state.time.toFixed(2) + ' s');
+                draw(); animateModePreviews(); drawGraph(); drawEnergyGraph(); updateRuler();
+                animationFrameId = requestAnimationFrame(gameLoop);
+            }
+
+            function resizeCanvas() { const container = dom.simulationWrapper; let width = container.clientWidth; if (width === 0) width = Math.max(300, window.innerWidth * 0.55); dom.canvas.width = width; dom.canvas.height = state.oscillationDirection === 'horizontal' ? width / 3 : width / 1.5; [dom.graphCanvas, dom.energyGraphCanvas].forEach(c => { c.width = c.clientWidth; c.height = c.clientHeight; }); setupSimulation(); draw(); }
+            function createIndividualControls() { dom.individualParamsControls.innerHTML = ''; let massHtml = '<h4 class="text-xs text-gray-400 mt-2">Masas Individuales (kg)</h4>'; for(let i=0; i < state.numMasses; i++) { massHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">m<sub>${i+1}</sub></label><input type="range" class="individual-mass-slider" data-index="${i}" min="0.1" max="5" step="0.1" value="${state.individualMasses[i]}"><span class="w-10 text-right text-xs">${state.individualMasses[i].toFixed(1)}</span></div>`; } dom.individualParamsControls.innerHTML += massHtml; let kHtml = '<h4 class="text-xs text-gray-400 mt-2">Constantes Elásticas (N/m)</h4>'; for(let i=0; i < state.numMasses + 1; i++) { kHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">k<sub>${i+1}</sub></label><input type="range" class="individual-k-slider" data-index="${i}" min="1" max="50" step="1" value="${state.individualKs[i]}"><span class="w-10 text-right text-xs">${state.individualKs[i].toFixed(1)}</span></div>`; } dom.individualParamsControls.innerHTML += kHtml; dom.individualParamsControls.querySelectorAll('.individual-mass-slider').forEach(slider => { slider.addEventListener('input', e => { const index = parseInt(e.target.dataset.index); const value = parseFloat(e.target.value); state.individualMasses[index] = value; e.target.nextElementSibling.textContent = value.toFixed(1); setupSimulation(); }); }); dom.individualParamsControls.querySelectorAll('.individual-k-slider').forEach(slider => { slider.addEventListener('input', e => { const index = parseInt(e.target.dataset.index); const value = parseFloat(e.target.value); state.individualKs[index] = value; e.target.nextElementSibling.textContent = value.toFixed(1); setupSimulation(); }); }); }
+            function handleSimModeChange() { state.simulationMode = document.querySelector('input[name="sim-mode"]:checked').value; const isNormalOrSuper = state.simulationMode === 'normal' || state.simulationMode === 'superposition'; dom.normalModesPanel.classList.toggle('hidden', !isNormalOrSuper); if (isNormalOrSuper) { if (state.simulationMode === 'normal') { dom.normalModesDescription.textContent = "Selecciona un modo para visualizar su patrón y frecuencia."; } else { dom.normalModesDescription.textContent = "Ajusta la amplitud de cada modo para crear una superposición."; } renderNormalModesList(); animateModePreviews(); } if (state.simulationMode !== 'real') { if (state.isPlaying) state.time = 0; state.masses.forEach(m => { m.x = 0; m.v = 0; }); } }
+            function handleMassCountChange(delta) { let newCount = state.numMasses + delta; newCount = Math.max(2, Math.min(8, newCount)); if (newCount === state.numMasses) return; state.numMasses = newCount; dom.massCountLabelHud.textContent = state.numMasses; state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK); if(!state.isUniform) createIndividualControls(); setupSimulation(); }
+            function togglePlayPause() { state.isPlaying = !state.isPlaying; dom.playPauseBtn.textContent = state.isPlaying ? 'Pausa' : 'Play'; }
+            function calculateEnergies() { let kinetic = 0, potential = 0; state.masses.forEach(mass => { kinetic += 0.5 * mass.m * (mass.v * state.pixelsPerMeter) * (mass.v * state.pixelsPerMeter); }); for (let i = 0; i < state.numMasses + 1; i++) { const stretch = (i < state.numMasses ? state.masses[i].x : 0) - (i > 0 ? state.masses[i - 1].x : 0); potential += 0.5 * state.springs[i].k * (stretch / state.pixelsPerMeter) * (stretch / state.pixelsPerMeter); } return { kinetic, potential, total: kinetic + potential }; }
+            function addDataToLog() { const energies = calculateEnergies(); const snapshot = { time: state.time, mode: state.simulationMode, numMasses: state.numMasses, damping: state.damping, kineticEnergy: energies.kinetic, potentialEnergy: energies.potential, totalEnergy: energies.total, positions: state.masses.map(m => m.x), velocities: state.masses.map(m => m.v) }; state.dataLog.push(snapshot); renderDataLog(); }
+            function renderDataLog(isLarge = false) {
+                const tableHead = isLarge ? dom.largeDataTableHead : dom.dataTableHead;
+                const tableBody = isLarge ? dom.largeDataTableBody : dom.dataTableBody;
+                if (state.dataLog.length === 0) { tableHead.innerHTML = ''; tableBody.innerHTML = ''; return; }
+                const firstEntry = state.dataLog[0];
+                let headers = isLarge ? `<th>Tiempo (s)</th><th>Modo</th><th>N</th><th>Amort.</th><th>Ecin (J)</th><th>Epot (J)</th><th>Etot (J)</th>` : `<th>T</th><th>M</th><th>N</th><th>Am.</th><th>Ec</th><th>Ep</th><th>Et</th>`;
+                for (let i = 0; i < firstEntry.positions.length; i++) headers += `<th>x${i + 1}(cm)</th>`;
+                for (let i = 0; i < firstEntry.velocities.length; i++) headers += `<th>v${i + 1}(cm/s)</th>`;
+                tableHead.innerHTML = `<tr>${headers}</tr>`;
+                tableBody.innerHTML = state.dataLog.map(log => {
+                    let row = `<td>${log.time.toFixed(2)}</td><td>${log.mode.substring(0,4)}</td><td>${log.numMasses}</td><td>${log.damping.toFixed(2)}</td><td>${log.kineticEnergy.toExponential(2)}</td><td>${log.potentialEnergy.toExponential(2)}</td><td>${log.totalEnergy.toExponential(2)}</td>`;
+                    row += log.positions.map(p => `<td>${((p / state.pixelsPerMeter) * 100).toFixed(2)}</td>`).join('');
+                    row += log.velocities.map(v => `<td>${((v / state.pixelsPerMeter) * 100).toFixed(2)}</td>`).join('');
+                    return `<tr>${row}</tr>`;
+                }).join('');
+            }
+            function exportDataToCsv() { if (state.dataLog.length === 0) return; let maxMasses = 0; state.dataLog.forEach(log => { if (log.numMasses > maxMasses) maxMasses = log.numMasses; }); let headers = "Tiempo (s),Modo,N Masas,Amortiguamiento,E Cinética (J),E Potencial (J),E Total (J),"; for (let i = 1; i <= maxMasses; i++) headers += `Posición m${i} (cm),`; for (let i = 1; i <= maxMasses; i++) headers += `Velocidad m${i} (cm/s),`; headers = headers.slice(0, -1) + "\n"; const csvContent = state.dataLog.map(log => { let row = [log.time.toFixed(3), log.mode, log.numMasses, log.damping.toFixed(2), log.kineticEnergy.toExponential(4), log.potentialEnergy.toExponential(4), log.totalEnergy.toExponential(4)].join(','); let positions = log.positions.map(p => ((p / state.pixelsPerMeter) * 100).toFixed(4)); while (positions.length < maxMasses) positions.push(''); let velocities = log.velocities.map(v => ((v / state.pixelsPerMeter) * 100).toFixed(4)); while (velocities.length < maxMasses) velocities.push(''); return row + ',' + positions.join(',') + ',' + velocities.join(','); }).join('\n'); const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); const url = URL.createObjectURL(blob); link.setAttribute('href', url); link.setAttribute('download', 'datos_oscilaciones.csv'); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link); }
+            function getMousePos(e) { const rect = dom.canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; return { x: clientX - rect.left, y: clientY - rect.top }; }
+            function checkMassHover(e) { if (state.simulationMode !== 'real' || state.isDragging) return; const pos = getMousePos(e); let hovering = false; for (const mass of state.masses) { const y_center = dom.canvas.height / 2; const massScreenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const massScreenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; const dist = Math.hypot(pos.x - massScreenX, pos.y - massScreenY); if (dist < mass.radius) { hovering = true; break; } } dom.canvas.style.cursor = hovering ? 'grab' : 'default'; }
+            function handleDragStart(e) { const pos = getMousePos(e); let didClickOnMass = false; let clickedMassIndex = -1; if (e.target === dom.rulerHandle1 || e.target === dom.rulerHandle2) { return; } state.masses.forEach((mass, i) => { const y_center = dom.canvas.height / 2; const massScreenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const massScreenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; const dist = Math.hypot(pos.x - massScreenX, pos.y - massScreenY); if (dist < mass.radius * 1.5) { didClickOnMass = true; clickedMassIndex = i; } }); if (didClickOnMass) { selectMassForGraphing(clickedMassIndex); if (state.simulationMode === 'real') { state.isDragging = true; state.draggedMassIndex = clickedMassIndex; dom.canvas.style.cursor = 'grabbing'; } if (e.type === 'touchstart') e.preventDefault(); } }
+            function handleDragMove(e) { if (state.ruler.dragging) { const rect = dom.canvas.getBoundingClientRect(); const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left; const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top; state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'x1' : 'x2'] = x; state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'y1' : 'y2'] = y; return; } if (!state.isDragging || state.draggedMassIndex === -1) { checkMassHover(e); return; } if (e.type === 'touchmove') e.preventDefault(); const pos = getMousePos(e); const mass = state.masses[state.draggedMassIndex]; let newX; if (state.oscillationDirection === 'horizontal') { newX = pos.x - mass.eq_pos; const prevMass = state.masses[state.draggedMassIndex - 1]; const nextMass = state.masses[state.draggedMassIndex + 1]; if (prevMass) { const minAllowedPos = prevMass.eq_pos + prevMass.x + prevMass.radius + mass.radius; const minAllowedX = minAllowedPos - mass.eq_pos; newX = Math.max(newX, minAllowedX); } else { const minAllowedPos = 10 + mass.radius; const minAllowedX = minAllowedPos - mass.eq_pos; newX = Math.max(newX, minAllowedX); } if (nextMass) { const maxAllowedPos = nextMass.eq_pos + nextMass.x - nextMass.radius - mass.radius; const maxAllowedX = maxAllowedPos - mass.eq_pos; newX = Math.min(newX, maxAllowedX); } else { const maxAllowedPos = dom.canvas.width - 10 - mass.radius; const maxAllowedX = maxAllowedPos - mass.eq_pos; newX = Math.min(newX, maxAllowedX); } } else { newX = pos.y - (dom.canvas.height / 2); } mass.x = newX; mass.v = 0; }
+            function handleDragEnd() { if (state.isDragging) { state.isDragging = false; state.draggedMassIndex = -1; checkMassHover({}); } }
+            function handleUniformCheckboxChange(e) { state.isUniform = e.target.checked; dom.uniformParamsControls.classList.toggle('hidden', !state.isUniform); dom.individualParamsControls.classList.toggle('hidden', state.isUniform); const modesAvailable = state.isUniform; document.querySelectorAll('input[name="sim-mode"]').forEach(radio => { if (radio.value === 'normal' || radio.value === 'superposition') { radio.disabled = !modesAvailable; } }); if (!modesAvailable && state.simulationMode !== 'real') { document.querySelector('input[name="sim-mode"][value="real"]').checked = true; handleSimModeChange(); } if (!state.isUniform) createIndividualControls(); else setupSimulation(); }
+            function handleUniformSliderInput(e) { const id = e.target.id; const val = parseFloat(e.target.value); const labelElement = document.querySelector(`label[for="${id}"] span`); if (labelElement) { labelElement.textContent = val.toFixed(id.includes('damping') ? 2 : 1); } const stateKey = id.replace(/-slider/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase()); state[stateKey] = val; if (stateKey === 'uniformMass') state.individualMasses.fill(val); else if (stateKey === 'uniformK') state.individualKs.fill(val); setupSimulation(); }
+            function showInfoPopup() { dom.popupMessage.innerHTML = `...`; dom.popupOverlay.classList.remove('hidden'); dom.popupBox.classList.remove('hidden'); setTimeout(() => { dom.popupOverlay.classList.remove('opacity-0'); dom.popupBox.classList.remove('opacity-0'); }, 10); }
+            function hideInfoPopup() { dom.popupOverlay.classList.add('opacity-0'); dom.popupBox.classList.add('opacity-0'); setTimeout(() => { dom.popupOverlay.classList.add('hidden'); dom.popupBox.classList.add('hidden'); }, 300); }
+            function showDataPopup() { renderDataLog(true); dom.dataPopupOverlay.classList.remove('hidden'); dom.dataPopupBox.classList.remove('hidden'); setTimeout(() => { dom.dataPopupOverlay.classList.remove('opacity-0'); dom.dataPopupBox.classList.remove('opacity-0'); }, 10); }
+            function hideDataPopup() { dom.dataPopupOverlay.classList.add('opacity-0'); dom.dataPopupBox.classList.add('opacity-0'); setTimeout(() => { dom.dataPopupOverlay.classList.add('hidden'); dom.dataPopupBox.classList.add('hidden'); }, 300); }
+            function clearData() { state.dataLog = []; renderDataLog(); renderDataLog(true); }
+            
+            function init() {
+                window.addEventListener('resize', resizeCanvas); state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK);
+                dom.playPauseBtn.addEventListener('click', togglePlayPause);
+                dom.timeResetBtn.addEventListener('click', () => { state.time = 0; if (!state.isPlaying) { state.masses.forEach(m => { m.x = 0; m.v = 0; }); state.graphData = []; state.energyGraphData = []; } });
+                dom.timeScaleSlider.addEventListener('input', (e) => state.timeScale = parseFloat(e.target.value));
+                dom.resetBtn.addEventListener('click', () => { if (state.isPlaying) togglePlayPause(); state.time = 0; state.graphData = []; state.energyGraphData = []; setupSimulation(); });
+                dom.infoBtn.addEventListener('click', showInfoPopup); dom.popupClose.addEventListener('click', hideInfoPopup); dom.popupOverlay.addEventListener('click', hideInfoPopup);
+                dom.directionRadios.forEach(radio => radio.addEventListener('change', e => { state.oscillationDirection = e.target.value; resizeCanvas(); }));
+                dom.massCountMinusBtn.addEventListener('click', () => handleMassCountChange(-1)); dom.massCountPlusBtn.addEventListener('click', () => handleMassCountChange(1));
+                dom.simModeRadios.forEach(radio => radio.addEventListener('change', handleSimModeChange));
+                dom.uniformParamsCheckbox.addEventListener('change', handleUniformCheckboxChange);
+                ['uniform-mass-slider', 'uniform-k-slider', 'damping-slider'].forEach(id => { document.getElementById(id).addEventListener('input', handleUniformSliderInput); });
+                dom.canvas.addEventListener('mousedown', handleDragStart); dom.canvas.addEventListener('touchstart', handleDragStart, { passive: false });
+                dom.addDataBtn.addEventListener('click', addDataToLog); dom.viewDataBtn.addEventListener('click', showDataPopup);
+                dom.dataPopupClose.addEventListener('click', hideDataPopup); dom.dataPopupOverlay.addEventListener('click', hideDataPopup);
+                dom.largeClearDataBtn.addEventListener('click', clearData); dom.largeExportCsvBtn.addEventListener('click', exportDataToCsv);
+                dom.rulerCheckbox.addEventListener('change', e => dom.rulerContainer.classList.toggle('hidden', !e.target.checked));
+                ['rulerHandle1', 'rulerHandle2'].forEach(handleId => { dom[handleId].addEventListener('mousedown', e => { state.ruler.dragging = handleId; e.stopPropagation(); }); });
+                const combinedMoveListener = (e) => { handleDragMove(e); };
+                const combinedEndListener = () => { if (state.ruler.dragging) state.ruler.dragging = null; handleDragEnd(); };
+                window.addEventListener('mousemove', combinedMoveListener); window.addEventListener('touchmove', combinedMoveListener, { passive: false });
+                window.addEventListener('mouseup', combinedEndListener); window.addEventListener('mouseleave', combinedEndListener); window.addEventListener('touchend', combinedEndListener);
+                
+                // Forced Oscillator Listeners
+                dom.forcedOscillatorCheckbox.addEventListener('change', e => {
+                    state.isForced = e.target.checked;
+                    dom.forcedOscillatorControls.classList.toggle('hidden', !state.isForced);
+                    if (state.isForced) {
+                        document.querySelector('input[name="sim-mode"][value="real"]').checked = true;
+                        handleSimModeChange();
+                        document.querySelectorAll('input[name="sim-mode"]').forEach(radio => {
+                            if (radio.value !== 'real') radio.disabled = true;
+                        });
+                    } else {
+                        document.querySelectorAll('input[name="sim-mode"]').forEach(radio => radio.disabled = false);
+                    }
+                });
+                dom.forcingAmplitudeSlider.addEventListener('input', e => {
+                    state.forcingAmplitude = parseFloat(e.target.value);
+                    dom.forcingAmplitudeLabel.textContent = state.forcingAmplitude.toFixed(1);
+                });
+                dom.forcingFrequencySlider.addEventListener('input', e => {
+                    state.forcingFrequency = parseFloat(e.target.value);
+                    dom.forcingFrequencyLabel.textContent = state.forcingFrequency.toFixed(2);
+                });
+
+                resizeCanvas(); gameLoop();
+            }
+            init();
+        });
+    </script>
+</body>
+</html>
+
 
