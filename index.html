@@ -1064,13 +1064,15 @@
                 let newWidth = container.clientWidth;
                 if (newWidth === 0) newWidth = Math.max(300, window.innerWidth * 0.65);
                 
-                if (Math.abs(newWidth - lastCanvasWidth) < 2 && dom.canvas.height > 0) {
-                     return;
-                }
+                // This check was causing issues when only height needed to change. Removing it.
+                // if (Math.abs(newWidth - lastCanvasWidth) < 2 && dom.canvas.height > 0) {
+                //      return;
+                // }
                 lastCanvasWidth = newWidth;
 
                 dom.canvas.width = newWidth;
-                dom.canvas.height = state.oscillationDirection === 'horizontal' ? newWidth / 2.5 : newWidth / 1.2;
+                // Final balanced value for transversal wave height
+                dom.canvas.height = state.oscillationDirection === 'horizontal' ? newWidth / 2.5 : newWidth / 1.4;
                 
                 resizeGraphCanvases();
                 
