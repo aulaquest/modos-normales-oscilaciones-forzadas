@@ -226,26 +226,6 @@
                 <div id="individual-params-controls" class="hidden space-y-2"></div>
                 <div><label for="damping-slider" class="text-xs text-gray-400">Amortiguamiento: <span id="damping-label" class="font-bold text-white">0.00</span></label><input type="range" id="damping-slider" min="0" max="0.5" step="0.01" value="0"></div>
             </div>
-             <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
-                <h3 class="text-sm font-bold text-sky-400">Herramientas de Visualización</h3>
-                <div class="flex flex-col space-y-2">
-                    <label class="checkbox-label text-xs">
-                        <input type="checkbox" id="ruler-checkbox">
-                        <span class="checkmark"></span>
-                        Mostrar Regla
-                    </label>
-                    <label class="checkbox-label text-xs">
-                        <input type="checkbox" id="show-position-graph-checkbox">
-                        <span class="checkmark"></span>
-                        Ver Gráfica Posición-Tiempo
-                    </label>
-                    <label class="checkbox-label text-xs">
-                        <input type="checkbox" id="show-energy-graph-checkbox">
-                        <span class="checkmark"></span>
-                        Ver Gráfica Energía-Tiempo
-                    </label>
-                </div>
-            </div>
             <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
                  <h3 class="text-sm font-bold text-sky-400 mb-2">Modo de Simulación</h3>
                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -270,14 +250,34 @@
                 </div>
                 <div id="forced-oscillator-controls" class="hidden space-y-2 pt-2 border-t border-slate-700">
                     <div>
-                        <label for="forcing-amplitude-slider" class="text-xs text-gray-400">Amplitud Fuerza (F₀): <span id="forcing-amplitude-label" class="font-bold text-white">0.2</span> N</label>
-                        <input type="range" id="forcing-amplitude-slider" min="0" max="20" step="0.1" value="0.2">
+                        <label for="forcing-amplitude-slider" class="text-xs text-gray-400">Amplitud Fuerza (F₀): <span id="forcing-amplitude-label" class="font-bold text-white">0.20</span> N</label>
+                        <input type="range" id="forcing-amplitude-slider" min="0" max="3" step="0.05" value="0.2">
                     </div>
                     <div>
                         <label for="forcing-frequency-slider" class="text-xs text-gray-400">Frecuencia Forzada (ωd): <span id="forcing-frequency-label" class="font-bold text-white">1.00</span> ω₀</label>
                         <input type="range" id="forcing-frequency-slider" min="0.1" max="3" step="0.01" value="1.0">
                     </div>
                     <div id="resonance-frequencies-info" class="text-xs text-center text-gray-400 mt-2"></div>
+                </div>
+            </div>
+             <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
+                <h3 class="text-sm font-bold text-sky-400">Herramientas de Visualización</h3>
+                <div class="flex flex-col space-y-2">
+                    <label class="checkbox-label text-xs">
+                        <input type="checkbox" id="ruler-checkbox">
+                        <span class="checkmark"></span>
+                        Mostrar Regla
+                    </label>
+                    <label class="checkbox-label text-xs">
+                        <input type="checkbox" id="show-position-graph-checkbox">
+                        <span class="checkmark"></span>
+                        Ver Gráfica Posición-Tiempo
+                    </label>
+                    <label class="checkbox-label text-xs">
+                        <input type="checkbox" id="show-energy-graph-checkbox">
+                        <span class="checkmark"></span>
+                        Ver Gráfica Energía-Tiempo
+                    </label>
                 </div>
             </div>
             <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
@@ -370,13 +370,27 @@
             const energyGraphCtx = dom.energyGraphCanvas.getContext('2d');
             let animationFrameId;
 
-            let state = {
-                numMasses: 4, masses: [], springs: [],
-                isPlaying: false, time: 0, timeScale: 1, dt: 1 / 60,
+            // --- Default State ---
+            const defaultState = {
+                numMasses: 4,
+                isPlaying: false,
+                time: 0,
+                timeScale: 1,
                 damping: 0.0,
-                isUniform: true, uniformMass: 1.0, uniformK: 10.0,
+                isUniform: true,
+                uniformMass: 1.0,
+                uniformK: 10.0,
                 simulationMode: 'real',
                 oscillationDirection: 'horizontal',
+                isForced: false,
+                forcingAmplitude: 0.2,
+                forcingFrequency: 1.0,
+            };
+
+            let state = {
+                ...JSON.parse(JSON.stringify(defaultState)), // Deep copy of defaults
+                dt: 1 / 60,
+                masses: [], springs: [],
                 selectedMode: 0, normalModes: [], modeAmplitudes: [], modePhases: [],
                 isDragging: false, draggedMassIndex: -1,
                 individualMasses: [], individualKs: [],
@@ -386,9 +400,6 @@
                 energyGraphData: { total: [], potential: [], kinetic: [], individualK: {} },
                 pixelsPerMeter: 500, 
                 ruler: { x1: 50, y1: 50, x2: 200, y2: 50, dragging: null },
-                isForced: false,
-                forcingAmplitude: 0.2,
-                forcingFrequency: 1.0, 
             };
             
             const colors = ['#f87171', '#fb923c', '#facc15', '#a3e635', '#4ade80', '#34d399', '#22d3ee', '#60a5fa'];
@@ -815,23 +826,32 @@
                 const plotWidth = w - padding.left - padding.right;
                 const plotHeight = h - padding.top - padding.bottom;
                 
-                let maxE = 0;
-                if(state.energyGraphData.total && state.energyGraphData.total.length > 0) {
-                    maxE = Math.max(...state.energyGraphData.total);
-                }
+                let maxE = 0; 
+                state.graphedEnergyIndices.forEach(idx => {
+                     let data;
+                    if (idx === 'total' || idx === 'kinetic' || idx === 'potential') {
+                        data = state.energyGraphData[idx];
+                    } else {
+                        const massIndex = parseInt(idx);
+                        data = state.energyGraphData.individualK[massIndex];
+                    }
+                    if (data && data.length > 0) {
+                        const currentMax = Math.max(...data);
+                         if(currentMax > maxE) maxE = currentMax;
+                    }
+                });
+                
                 maxE = Math.max(0.001, maxE);
                 const scaleY = plotHeight / maxE;
-
-                // Draw lines
+                
                 state.graphedEnergyIndices.forEach(idx => {
                     let data, color;
-                    if (idx === 'total' || idx === 'kinetic' || idx === 'potential') {
+                     if (idx === 'total' || idx === 'kinetic' || idx === 'potential') {
                         data = state.energyGraphData[idx];
                          if(idx === 'total') { color = 'white'; }
                          else if(idx === 'potential') { color = '#60a5fa'; }
                          else if(idx === 'kinetic') { color = '#fb923c'; }
                     } else {
-                        // It's an individual kinetic energy index
                         const massIndex = parseInt(idx);
                         if (state.energyGraphData.individualK[massIndex]) {
                             data = state.energyGraphData.individualK[massIndex];
@@ -852,7 +872,6 @@
                     energyGraphCtx.stroke();
                 });
                 
-                // Draw Axes
                 energyGraphCtx.strokeStyle = '#64748b'; energyGraphCtx.lineWidth = 1;
                 energyGraphCtx.beginPath();
                 energyGraphCtx.moveTo(padding.left, padding.top);
@@ -1045,13 +1064,13 @@
                 let newWidth = container.clientWidth;
                 if (newWidth === 0) newWidth = Math.max(300, window.innerWidth * 0.65);
                 
-                if (Math.abs(newWidth - lastCanvasWidth) < 2) {
+                if (Math.abs(newWidth - lastCanvasWidth) < 2 && dom.canvas.height > 0) {
                      return;
                 }
                 lastCanvasWidth = newWidth;
 
                 dom.canvas.width = newWidth;
-                dom.canvas.height = state.oscillationDirection === 'horizontal' ? newWidth / 3 : newWidth / 1.5;
+                dom.canvas.height = state.oscillationDirection === 'horizontal' ? newWidth / 2.5 : newWidth / 1.2;
                 
                 resizeGraphCanvases();
                 
@@ -1420,6 +1439,65 @@
                     dom.resonanceFrequenciesInfo.innerHTML = '';
                 }
             }
+            
+            function resetToDefaults() {
+                if (state.isPlaying) togglePlayPause();
+                
+                // Reset state variables to their defaults by creating a new state object
+                const oldState = state;
+                state = {
+                    ...JSON.parse(JSON.stringify(defaultState)),
+                    dt: oldState.dt, // Keep some non-parameter values
+                    masses: [], springs: [],
+                    selectedMode: 0, normalModes: [], modeAmplitudes: [], modePhases: [],
+                    isDragging: false, draggedMassIndex: -1,
+                    individualMasses: [], individualKs: [],
+                    dataLog: [],
+                    graphedMassIndices: [], graphData: {},
+                    graphedEnergyIndices: ['total', 'kinetic', 'potential'], 
+                    energyGraphData: { total: [], potential: [], kinetic: [], individualK: {} },
+                    pixelsPerMeter: oldState.pixelsPerMeter, 
+                    ruler: { x1: 50, y1: 50, x2: 200, y2: 50, dragging: null },
+                };
+
+                // Update all UI elements to reflect the default state
+                dom.massCountLabelHud.textContent = state.numMasses;
+                document.querySelector('input[name="direction"][value="horizontal"]').checked = true;
+                dom.timeScaleSlider.value = state.timeScale;
+                
+                dom.uniformParamsCheckbox.checked = true;
+                dom.uniformParamsControls.classList.remove('hidden');
+                dom.individualParamsControls.classList.add('hidden');
+
+                dom.uniformMassSlider.value = state.uniformMass;
+                dom.uniformMassLabel.textContent = state.uniformMass.toFixed(1);
+                dom.uniformKSlider.value = state.uniformK;
+                dom.uniformKLabel.textContent = state.uniformK.toFixed(1);
+                dom.dampingSlider.value = state.damping;
+                dom.dampingLabel.textContent = state.damping.toFixed(2);
+                
+                document.querySelector('input[name="sim-mode"][value="real"]').checked = true;
+                dom.normalModesPanel.classList.add('hidden');
+                document.querySelectorAll('input[name="sim-mode"]').forEach(radio => radio.disabled = !state.isUniform && (radio.value !== 'real'));
+
+                dom.forcedOscillatorCheckbox.checked = false;
+                dom.forcedOscillatorControls.classList.add('hidden');
+                dom.forcingAmplitudeSlider.value = state.forcingAmplitude;
+                dom.forcingAmplitudeLabel.textContent = state.forcingAmplitude.toFixed(2);
+                dom.forcingFrequencySlider.value = state.forcingFrequency;
+                dom.forcingFrequencyLabel.textContent = state.forcingFrequency.toFixed(2);
+
+                dom.rulerCheckbox.checked = false;
+                dom.rulerContainer.classList.add('hidden');
+                dom.showPositionGraphCheckbox.checked = false;
+                dom.positionGraphContainer.classList.add('hidden');
+                dom.showEnergyGraphCheckbox.checked = false;
+                dom.energyGraphContainer.classList.add('hidden');
+                
+                // Re-initialize the simulation completely
+                resizeCanvas();
+            }
+
 
             function init() {
                 window.addEventListener('resize', resizeCanvas);
@@ -1435,17 +1513,11 @@
                         state.energyGraphData = { total: [], potential: [], kinetic: [], individualK: {} };
                         state.graphedMassIndices = [];
                         buildGraphCheckboxes();
+                        buildEnergyGraphCheckboxes();
                     }
                 });
                 dom.timeScaleSlider.addEventListener('input', (e) => state.timeScale = parseFloat(e.target.value));
-                dom.resetBtn.addEventListener('click', () => {
-                    if (state.isPlaying) togglePlayPause();
-                    state.time = 0;
-                    state.graphData = {};
-                    state.energyGraphData = { total: [], potential: [], kinetic: [], individualK: {} };
-                    state.graphedMassIndices = [];
-                    setupSimulation();
-                });
+                dom.resetBtn.addEventListener('click', resetToDefaults);
                 
                 dom.infoBtn.addEventListener('click', showInfoPopup);
                 dom.popupClose.addEventListener('click', hideInfoPopup);
@@ -1537,7 +1609,7 @@
                 });
                 dom.forcingAmplitudeSlider.addEventListener('input', e => {
                     state.forcingAmplitude = parseFloat(e.target.value);
-                    dom.forcingAmplitudeLabel.textContent = state.forcingAmplitude.toFixed(1);
+                    dom.forcingAmplitudeLabel.textContent = state.forcingAmplitude.toFixed(2);
                 });
                 dom.forcingFrequencySlider.addEventListener('input', e => {
                     state.forcingFrequency = parseFloat(e.target.value);
@@ -1553,4 +1625,5 @@
     </script>
 </body>
 </html>
+
 
