@@ -149,11 +149,7 @@
             <div id="energy-graph-container" class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg hidden">
                 <div class="flex justify-between items-center mb-2 flex-wrap">
                     <h4 class="text-sm font-bold text-sky-400">Energía vs. Tiempo</h4>
-                    <div id="energy-graph-checkboxes-container" class="flex gap-x-4 flex-wrap text-xs">
-                        <span style="color:#fb923c;">■ Cinética (K)</span>
-                        <span style="color:#60a5fa;">■ Potencial (P)</span>
-                        <span style="color:white;">— Total (T)</span>
-                    </div>
+                    <div id="energy-graph-checkboxes-container" class="flex gap-x-4 flex-wrap"></div>
                 </div>
                 <canvas id="energy-graph-canvas" class="w-full h-40 rounded bg-slate-800/20"></canvas>
             </div>
@@ -222,7 +218,7 @@
             </div>
              <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
                 <h3 class="text-sm font-bold text-sky-400">Herramientas de Visualización</h3>
-                <div class="space-y-2">
+                <div class="flex flex-col space-y-2">
                     <label class="checkbox-label text-xs">
                         <input type="checkbox" id="ruler-checkbox">
                         <span class="checkmark"></span>
@@ -427,6 +423,7 @@
                 state.modePhases = new Array(state.numMasses).fill(0);
 
                 buildGraphCheckboxes();
+                buildEnergyGraphCheckboxes();
                 calculateNormalModes();
                 updateResonanceInfo();
             }
@@ -644,22 +641,24 @@
                 const mode = state.normalModes[state.selectedMode];
                 if (!mode) return;
                 const A = 0.08;
+                const decayFactor = Math.exp(-state.damping * state.time);
                 state.masses.forEach((mass, i) => {
-                    mass.x = A * mode.amplitudes[i] * Math.cos(mode.omega * state.time);
-                    mass.v = -A * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time);
+                    mass.x = A * decayFactor * mode.amplitudes[i] * Math.cos(mode.omega * state.time);
+                    mass.v = -A * decayFactor * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time);
                 });
             }
 
             function updateSuperpositionEvolution() {
                 state.masses.forEach(m => { m.x = 0; m.v = 0; });
                 const A_base = 0.08;
+                const decayFactor = Math.exp(-state.damping * state.time);
                 state.normalModes.forEach((mode, n) => {
                     const amp = state.modeAmplitudes[n] * A_base;
                     const phase = state.modePhases[n] * Math.PI;
                     if (amp === 0) return;
                     state.masses.forEach((mass, i) => {
-                        mass.x += amp * mode.amplitudes[i] * Math.cos(mode.omega * state.time + phase);
-                        mass.v += -amp * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time + phase);
+                        mass.x += amp * decayFactor * mode.amplitudes[i] * Math.cos(mode.omega * state.time + phase);
+                        mass.v += -amp * decayFactor * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time + phase);
                     });
                 });
             }
@@ -798,61 +797,46 @@
 
             function drawEnergyGraph() {
                 energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height);
-                const data = state.energyGraphData;
-                if (!data || data.total.length < 2) return;
+                if (!state.energyGraphData || state.energyGraphData.total.length < 2) return;
 
                 const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height;
                 const padding = { top: 10, bottom: 20, left: 35, right: 10 };
                 const plotWidth = w - padding.left - padding.right;
                 const plotHeight = h - padding.top - padding.bottom;
                 
-                let maxE = 0;
-                data.total.forEach(p => { maxE = Math.max(maxE, p); });
+                let maxE = 0; 
+                state.graphedEnergyIndices.forEach(idx => {
+                    const data = state.energyGraphData[idx.toLowerCase()];
+                    if (data && data.length > 0) {
+                        const currentMax = Math.max(...data);
+                         if(currentMax > maxE) maxE = currentMax;
+                    }
+                });
+                
                 maxE = Math.max(0.001, maxE);
                 const scaleY = plotHeight / maxE;
-
-                const kineticData = data.kinetic;
-                const totalData = data.total;
-
-                // Draw Potential Energy Area (P = T - K)
-                energyGraphCtx.fillStyle = 'rgba(96, 165, 250, 0.6)'; // blue-400 with opacity
-                energyGraphCtx.beginPath();
-                energyGraphCtx.moveTo(padding.left, h - padding.bottom);
-                for (let j = 0; j < kineticData.length; j++) {
-                    const screenX = padding.left + (j / (kineticData.length - 1)) * plotWidth;
-                    const screenY = h - padding.bottom - (totalData[j] - kineticData[j]) * scaleY;
-                    energyGraphCtx.lineTo(screenX, screenY);
-                }
-                energyGraphCtx.lineTo(padding.left + plotWidth, h - padding.bottom);
-                energyGraphCtx.closePath();
-                energyGraphCtx.fill();
-
-                // Draw Kinetic Energy Area (K)
-                energyGraphCtx.fillStyle = 'rgba(251, 146, 60, 0.6)'; // orange-400 with opacity
-                energyGraphCtx.beginPath();
-                energyGraphCtx.moveTo(padding.left, h - padding.bottom);
-                for (let j = 0; j < kineticData.length; j++) {
-                    const screenX = padding.left + (j / (kineticData.length - 1)) * plotWidth;
-                    const screenY = h - padding.bottom - kineticData[j] * scaleY;
-                    energyGraphCtx.lineTo(screenX, screenY);
-                }
-                energyGraphCtx.lineTo(padding.left + plotWidth, h - padding.bottom);
-                energyGraphCtx.closePath();
-                energyGraphCtx.fill();
-
-                // Draw Total Energy Line
-                energyGraphCtx.strokeStyle = 'white';
-                energyGraphCtx.lineWidth = 2;
-                energyGraphCtx.beginPath();
-                for (let j = 0; j < totalData.length; j++) {
-                    const screenX = padding.left + (j / (totalData.length - 1)) * plotWidth;
-                    const screenY = h - padding.bottom - totalData[j] * scaleY;
-                    if (j === 0) energyGraphCtx.moveTo(screenX, screenY);
-                    else energyGraphCtx.lineTo(screenX, screenY);
-                }
-                energyGraphCtx.stroke();
                 
-                // Draw Axes
+                state.graphedEnergyIndices.forEach(idx => {
+                    const key = idx.toLowerCase();
+                    const data = state.energyGraphData[key];
+                    let color;
+                    if(key === 'total') { color = 'white'; }
+                    else if(key === 'potential') { color = '#60a5fa'; }
+                    else if(key === 'kinetic') { color = '#fb923c'; }
+
+                    if(!data || data.length < 2) return;
+                    
+                    energyGraphCtx.strokeStyle = color; energyGraphCtx.lineWidth = (key === 'total' ? 2 : 1.5);
+                    energyGraphCtx.beginPath();
+                    for (let j = 0; j < data.length; j++) {
+                        const screenX = padding.left + (j / (data.length - 1)) * plotWidth;
+                        const screenY = h - padding.bottom - data[j] * scaleY;
+                        if (j === 0) energyGraphCtx.moveTo(screenX, screenY);
+                        else energyGraphCtx.lineTo(screenX, screenY);
+                    }
+                    energyGraphCtx.stroke();
+                });
+                
                 energyGraphCtx.strokeStyle = '#64748b'; energyGraphCtx.lineWidth = 1;
                 energyGraphCtx.beginPath();
                 energyGraphCtx.moveTo(padding.left, padding.top);
@@ -865,7 +849,6 @@
                 energyGraphCtx.fillText(maxLabel + ' J', 0, padding.top + 3);
                 energyGraphCtx.fillText('0 J', 0, h - padding.bottom);
             }
-            
             
             function updateRuler() {
                 if (dom.rulerContainer.classList.contains('hidden')) return;
@@ -962,7 +945,7 @@
             }
 
             function handleDragMove(e) {
-                if (state.isDragging) e.preventDefault();
+                if(state.isDragging) e.preventDefault();
                 
                 if (state.ruler.dragging) {
                     const rect = dom.canvas.getBoundingClientRect();
@@ -1010,7 +993,7 @@
             
             function handleMassCountChange(delta) {
                 let newCount = state.numMasses + delta;
-                newCount = Math.max(2, Math.min(8, newCount));
+                newCount = Math.max(1, Math.min(8, newCount));
                 if (newCount === state.numMasses) return;
                 
                 state.numMasses = newCount;
@@ -1023,24 +1006,39 @@
                 state.energyGraphData = { total: [], potential: [], kinetic: [] };
                 
                 if(!state.isUniform) createIndividualControls();
+                handleSimModeChange();
                 setupSimulation();
             }
 
+            let lastCanvasWidth = 0;
             function resizeCanvas() {
                 const container = dom.simulationWrapper;
-                let width = container.clientWidth;
-                if (width === 0) width = Math.max(300, window.innerWidth * 0.65);
+                let newWidth = container.clientWidth;
+                if (newWidth === 0) newWidth = Math.max(300, window.innerWidth * 0.65);
                 
-                dom.canvas.width = width;
-                dom.canvas.height = state.oscillationDirection === 'horizontal' ? width / 3 : width / 1.5;
+                if (Math.abs(newWidth - lastCanvasWidth) < 2) {
+                     return;
+                }
+                lastCanvasWidth = newWidth;
+
+                dom.canvas.width = newWidth;
+                dom.canvas.height = state.oscillationDirection === 'horizontal' ? newWidth / 3 : newWidth / 1.5;
                 
-                [dom.graphCanvas, dom.energyGraphCanvas].forEach(c => {
-                    c.width = c.clientWidth;
-                    c.height = c.clientHeight;
-                });
+                resizeGraphCanvases();
                 
                 setupSimulation();
                 draw();
+            }
+
+            function resizeGraphCanvases() {
+                if (!dom.positionGraphContainer.classList.contains('hidden')) {
+                    dom.graphCanvas.width = dom.graphCanvas.clientWidth;
+                    dom.graphCanvas.height = dom.graphCanvas.clientHeight;
+                }
+                if (!dom.energyGraphContainer.classList.contains('hidden')) {
+                    dom.energyGraphCanvas.width = dom.energyGraphCanvas.clientWidth;
+                    dom.energyGraphCanvas.height = dom.energyGraphCanvas.clientHeight;
+                }
             }
 
             function createIndividualControls() {
@@ -1082,7 +1080,7 @@
                 const isNormalOrSuper = state.simulationMode === 'normal' || state.simulationMode === 'superposition';
                 dom.normalModesPanel.classList.toggle('hidden', !isNormalOrSuper);
                 
-                dom.setupBeatsBtn.classList.toggle('hidden', state.simulationMode !== 'superposition' || !state.isUniform);
+                dom.setupBeatsBtn.classList.toggle('hidden', state.simulationMode !== 'superposition' || !state.isUniform || state.numMasses < 2);
 
                 if (isNormalOrSuper) {
                     if (state.simulationMode === 'normal') {
@@ -1305,6 +1303,34 @@
                 }
             }
 
+            function buildEnergyGraphCheckboxes() {
+                dom.energyGraphCheckboxesContainer.innerHTML = '';
+                const energyTypes = [
+                    { key: 'total', label: 'T', color: 'white' },
+                    { key: 'kinetic', label: 'K', color: '#fb923c' },
+                    { key: 'potential', label: 'P', color: '#60a5fa' },
+                ];
+                
+                energyTypes.forEach(type => {
+                    const label = document.createElement('label');
+                    label.className = 'checkbox-label text-xs';
+                    label.innerHTML = `
+                        <input type="checkbox" class="energy-graph-checkbox" value="${type.key}" ${state.graphedEnergyIndices.includes(type.key) ? 'checked' : ''}>
+                        <span class="checkmark"></span>
+                        <span style="color:${type.color}; margin-left:8px;">${type.label}</span>
+                    `;
+                    
+                    label.querySelector('input').addEventListener('change', (e) => {
+                        const val = e.target.value;
+                        const idx = state.graphedEnergyIndices.indexOf(val);
+                        if(idx > -1) state.graphedEnergyIndices.splice(idx, 1);
+                        else state.graphedEnergyIndices.push(val);
+                    });
+                    dom.energyGraphCheckboxesContainer.appendChild(label);
+                });
+            }
+
+
             function updateResonanceInfo() {
                 if(state.isForced && state.isUniform) {
                     const omega_0 = Math.sqrt(state.uniformK / state.uniformMass);
@@ -1373,12 +1399,12 @@
                 
                 dom.rulerCheckbox.addEventListener('change', e => dom.rulerContainer.classList.toggle('hidden', !e.target.checked));
                 dom.showPositionGraphCheckbox.addEventListener('change', e => {
-                    dom.positionGraphContainer.classList.toggle('hidden', !e.target.checked)
-                    if(e.target.checked) resizeCanvas();
+                    dom.positionGraphContainer.classList.toggle('hidden', !e.target.checked);
+                    resizeGraphCanvases();
                 });
                 dom.showEnergyGraphCheckbox.addEventListener('change', e => {
-                    dom.energyGraphContainer.classList.toggle('hidden', !e.target.checked)
-                    if(e.target.checked) resizeCanvas();
+                    dom.energyGraphContainer.classList.toggle('hidden', !e.target.checked);
+                    resizeGraphCanvases();
                 });
 
                 ['rulerHandle1', 'rulerHandle2'].forEach(handleId => {
