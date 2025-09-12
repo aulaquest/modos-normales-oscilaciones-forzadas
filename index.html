@@ -8,6 +8,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']]
+        }
+      };
+    </script>
+    <script async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -91,10 +100,11 @@
 
         .ruler { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none; }
         .ruler-handle {
-            position: absolute; width: 16px; height: 16px; border-radius: 50%;
+            position: absolute; width: 24px; height: 24px; border-radius: 50%;
             background-color: rgba(250, 204, 21, 0.8); border: 2px solid white;
             cursor: move; pointer-events: all;
             box-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+            touch-action: none;
         }
         .ruler-line { position: absolute; background-color: rgba(250, 204, 21, 0.8); height: 2px; transform-origin: left center; }
         .ruler-text {
@@ -158,9 +168,9 @@
     
     <!-- Popups -->
     <div id="popup-overlay" class="fixed inset-0 bg-black/50 z-40 hidden opacity-0"></div>
-    <div id="popup-box" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-600 rounded-lg p-6 z-50 hidden opacity-0 w-full max-w-2xl">
-        <h3 id="popup-title" class="text-xl font-bold text-sky-400 mb-4">Guía de la Simulación</h3>
-        <div id="popup-message" class="text-gray-300 mb-4 text-sm space-y-4"></div>
+    <div id="popup-box" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 border border-slate-600 rounded-lg p-6 z-50 hidden opacity-0 w-full max-w-2xl text-gray-300">
+        <h3 id="popup-title" class="text-xl font-bold text-sky-400 mb-4">Guía de la Simulación y Fundamento Teórico</h3>
+        <div id="popup-message" class="text-sm space-y-4"></div>
         <button id="popup-close" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
     </div>
 
@@ -394,10 +404,10 @@
                 }
             }
             
-            function getMousePos(e) {
+            function getMousePos(e, touchIndex = 0) {
                 const rect = dom.canvas.getBoundingClientRect();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const clientX = e.touches ? e.touches[touchIndex].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[touchIndex].clientY : e.clientY;
                 return { x: clientX - rect.left, y: clientY - rect.top };
             }
             
@@ -853,8 +863,8 @@
             function updateRuler() {
                 if (dom.rulerContainer.classList.contains('hidden')) return;
                 const { x1, y1, x2, y2 } = state.ruler;
-                dom.rulerHandle1.style.transform = `translate(${x1 - 8}px, ${y1 - 8}px)`;
-                dom.rulerHandle2.style.transform = `translate(${x2 - 8}px, ${y2 - 8}px)`;
+                dom.rulerHandle1.style.transform = `translate(${x1 - 12}px, ${y1 - 12}px)`;
+                dom.rulerHandle2.style.transform = `translate(${x2 - 12}px, ${y2 - 12}px)`;
                 const dx = x2 - x1, dy = y2 - y1;
                 const distPx = Math.hypot(dx, dy);
                 const angle = Math.atan2(dy, dx) * 180 / Math.PI;
@@ -915,11 +925,11 @@
             }
 
             function handleDragStart(e) {
+                if (e.type === 'touchstart') e.preventDefault();
+                
                 const pos = getMousePos(e);
                 let didClickOnMass = false;
                 let clickedMassIndex = -1;
-                
-                if (e.target === dom.rulerHandle1 || e.target === dom.rulerHandle2) return;
                 
                 state.masses.forEach((mass, i) => {
                     const y_center = dom.canvas.height / 2;
@@ -934,7 +944,6 @@
                 });
                 
                 if (didClickOnMass) {
-                    if (e.type === 'touchstart') e.preventDefault();
                     toggleMassForGraphing(clickedMassIndex);
                     if (state.simulationMode === 'real') {
                         state.isDragging = true;
@@ -946,13 +955,11 @@
 
             function handleDragMove(e) {
                 if(state.isDragging) e.preventDefault();
-                
                 if (state.ruler.dragging) {
-                    const rect = dom.canvas.getBoundingClientRect();
-                    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-                    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-                    state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'x1' : 'x2'] = x;
-                    state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'y1' : 'y2'] = y;
+                    const touchIndex = state.ruler.dragging === 'rulerHandle1' ? 0 : 1;
+                    const pos = getMousePos(e, touchIndex);
+                    state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'x1' : 'x2'] = pos.x;
+                    state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'y1' : 'y2'] = pos.y;
                     return;
                 }
                 
@@ -988,6 +995,9 @@
                     state.isDragging = false;
                     state.draggedMassIndex = -1;
                     dom.canvas.style.cursor = 'grab';
+                }
+                 if (state.ruler.dragging) {
+                    state.ruler.dragging = null;
                 }
             }
             
@@ -1078,7 +1088,7 @@
             function handleSimModeChange() {
                 state.simulationMode = document.querySelector('input[name="sim-mode"]:checked').value;
                 const isNormalOrSuper = state.simulationMode === 'normal' || state.simulationMode === 'superposition';
-                dom.normalModesPanel.classList.toggle('hidden', !isNormalOrSuper);
+                dom.normalModesPanel.classList.toggle('hidden', !isNormalOrSuper || state.numMasses < 1);
                 
                 dom.setupBeatsBtn.classList.toggle('hidden', state.simulationMode !== 'superposition' || !state.isUniform || state.numMasses < 2);
 
@@ -1238,26 +1248,58 @@
             function showInfoPopup() {
                 dom.popupMessage.innerHTML = `
                     <p>Bienvenido al Simulador de Oscilaciones Acopladas. Esta herramienta te permite explorar cómo un sistema de masas y resortes se comporta bajo diferentes condiciones.</p>
-                    <h5 class="font-bold mt-3 text-sky-500">Conceptos Clave:</h5>
-                    <ul class="list-disc list-inside space-y-2">
-                        <li><strong>Modo Real:</strong> Simula el comportamiento físico exacto del sistema. Puedes interactuar con las masas arrastrándolas para establecer condiciones iniciales.</li>
-                        <li><strong>Modos Normales:</strong> Son patrones de vibración especiales donde todas las masas oscilan a la misma frecuencia. Un sistema de N masas tiene N modos normales. Esta opción solo está disponible para masas y resortes uniformes.</li>
-                        <li><strong>Superposición:</strong> Permite combinar (superponer) múltiples modos normales. Ajusta la amplitud y fase de cada modo para crear patrones de onda complejos.</li>
-                        <li><strong>Batidos (Beats):</strong> Es un patrón de interferencia entre dos ondas de frecuencias ligeramente diferentes. El botón 'Generar Batidos' activa automáticamente los dos modos más cercanos en frecuencia. ¡Puedes experimentar creando otros tipos de batidos activando manualmente cualquier combinación de modos en el panel de superposición!</li>
-                        <li><strong>Oscilador Forzado:</strong> Aplica una fuerza externa oscilante a la primera masa para estudiar fenómenos como la resonancia. Al ajustar la frecuencia forzada a una de las frecuencias de resonancia del sistema (indicadas como guía), observarás cómo el sistema amplifica su oscilación en ese modo particular después de un breve período transitorio.</li>
+
+                    <h5 class="font-bold mt-4 text-sky-400">Cómo Usar la Simulación</h5>
+                    <ul class="list-disc list-inside space-y-2 mt-2">
+                        <li>Usa los controles para ajustar la masa, la constante elástica ($k$), el amortiguamiento y el número de masas.</li>
+                        <li>En el modo 'Real', haz clic y arrastra una masa para desplazarla de su posición de equilibrio.</li>
+                        <li>Activa las gráficas en "Herramientas de Visualización" para analizar el movimiento y la energía del sistema.</li>
+                         <li>La herramienta de 'Registro de Datos' te permite capturar y exportar los datos numéricos de la simulación para un análisis más profundo en hojas de cálculo.</li>
                     </ul>
-                    <h5 class="font-bold mt-3 text-sky-500">Cómo Usar:</h5>
-                     <ul class="list-disc list-inside space-y-2">
-                        <li>Usa los controles para ajustar la masa, la constante elástica (k), el amortiguamiento y el número de masas.</li>
-                        <li>En el modo 'Real', haz clic y arrastra una masa para desplazarla. Las masas no pueden atravesarse ni salirse de los límites.</li>
-                        <li>Usa las gráficas para analizar la posición y la energía. La gráfica de posición ahora se desplaza como un osciloscopio para ver mejor las ondas.</li>
-                    </ul>
+                    
+                    <h5 class="font-bold mt-4 text-sky-400">Conceptos Clave y Fundamento Teórico</h5>
+                    <div class="space-y-4 mt-2">
+                        <div>
+                            <strong class="text-white">Modo Real y Superposición</strong><br>
+                            Simula el comportamiento físico exacto del sistema. El movimiento general de cualquier sistema oscilante es siempre una suma (o superposición) de sus modos normales de vibración.
+                        </div>
+                        <div>
+                            <strong class="text-white">Oscilador Armónico Simple (Caso N=1)</strong><br>
+                            Es el bloque de construcción fundamental. Su movimiento se describe por la ecuación:
+                            $$ m \\frac{d^2x}{dt^2} + k_{total}x = 0 $$
+                            La frecuencia angular natural es $\\omega_0 = \\sqrt{k_{total}/m}$, donde $k_{total} = k_1 + k_2$ para una masa entre dos resortes.
+                        </div>
+                        <div>
+                            <strong class="text-white">Modos Normales de Vibración</strong><br>
+                            Son patrones de vibración especiales donde todas las masas oscilan a la misma frecuencia ($\omega_n$). Un sistema de N masas idénticas tiene N frecuencias de modo normal, dadas por la fórmula:
+                            $$ \\omega_n = 2\\sqrt{\\frac{k}{m}} \\sin\\left(\\frac{n\\pi}{2(N+1)}\\right) \\quad \\text{para } n=1, 2, ..., N $$
+                        </div>
+                        <div>
+                            <strong class="text-white">Batidos (Beats)</strong><br>
+                            Es un patrón de interferencia que ocurre cuando dos modos con frecuencias muy cercanas ($\\omega_1 \\approx \\omega_2$) se suman. Esto crea una oscilación cuya amplitud varía lentamente con una frecuencia de batido $\\omega_{batido} = |\\omega_1 - \\omega_2|$.
+                        </div>
+                        <div>
+                            <strong class="text-white">Oscilaciones Amortiguadas</strong><br>
+                            Una fuerza de fricción, modelada como $F_d = -bv$ (proporcional a la velocidad), disipa energía del sistema. La ecuación de movimiento se convierte en:
+                            $$ m \\frac{d^2x}{dt^2} + b \\frac{dx}{dt} + kx = 0 $$
+                            Esto causa que la amplitud de la oscilación decaiga exponencialmente con el tiempo: $A(t) = A_0 e^{-bt/2m}$. El deslizador 'Amortiguamiento' es un factor proporcional a $b$.
+                        </div>
+                        <div>
+                            <strong class="text-white">Oscilaciones Forzadas y Resonancia</strong><br>
+                            Cuando se aplica una fuerza externa periódica $F(t) = F_0 \\cos(\\omega_d t)$, la ecuación es:
+                            $$ m \\frac{d^2x}{dt^2} + b \\frac{dx}{dt} + kx = F_0 \\cos(\\omega_d t) $$
+                            La amplitud de la oscilación en el estado estacionario se maximiza drásticamente cuando la frecuencia forzada $\\omega_d$ es cercana a una de las frecuencias de modo normal $\\omega_n$. Este fenómeno se llama **resonancia**.
+                        </div>
+                    </div>
                 `;
                 dom.popupOverlay.classList.remove('hidden');
                 dom.popupBox.classList.remove('hidden');
                 setTimeout(() => {
                     dom.popupOverlay.classList.remove('opacity-0');
                     dom.popupBox.classList.remove('opacity-0');
+                    if (window.MathJax) {
+                        MathJax.typesetPromise();
+                    }
                 }, 10);
             }
 
@@ -1408,18 +1450,31 @@
                 });
 
                 ['rulerHandle1', 'rulerHandle2'].forEach(handleId => {
-                    dom[handleId].addEventListener('mousedown', e => {
+                    dom[handleId].addEventListener('pointerdown', e => {
+                        e.target.setPointerCapture(e.pointerId);
                         state.ruler.dragging = handleId;
                         e.stopPropagation();
+                    });
+                     dom[handleId].addEventListener('pointermove', e => {
+                        if (state.ruler.dragging === handleId) {
+                           const rect = dom.canvas.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const y = e.clientY - rect.top;
+                            state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'x1' : 'x2'] = x;
+                            state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'y1' : 'y2'] = y;
+                        }
+                    });
+                     dom[handleId].addEventListener('pointerup', e => {
+                        e.target.releasePointerCapture(e.pointerId);
+                         if(state.ruler.dragging === handleId) state.ruler.dragging = null;
                     });
                 });
 
                 const combinedMoveListener = (e) => { 
-                    if(state.isDragging || state.ruler.dragging) e.preventDefault();
+                    if(state.isDragging) e.preventDefault();
                     handleDragMove(e); 
                 };
                 const combinedEndListener = () => {
-                    if (state.ruler.dragging) state.ruler.dragging = null;
                     handleDragEnd();
                 };
                 
