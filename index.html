@@ -51,8 +51,8 @@
         .mode-item.selected { background-color: #3730a3; border-color: #4f46e5; }
         
         .mode-item-canvas {
-            width: 80px;
-            height: 40px;
+            width: 120px;
+            height: 50px;
             background-color: #1e293b;
             border-radius: 4px;
             box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
@@ -102,13 +102,17 @@
             color: #fbbf24; font-size: 12px; padding: 2px 6px;
             border-radius: 4px; border: 1px solid #fbbf24;
         }
+        #toast-notification {
+            pointer-events: none;
+            transition: opacity 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body class="text-gray-300 flex flex-col md:flex-row">
 
-    <!-- Columna de Simulación (60%) -->
-    <div class="w-full md:w-[60%] flex flex-col p-4">
-        <div id="info-hud" class="w-full max-w-2xl mx-auto bg-slate-900/70 backdrop-blur-sm p-3 rounded-lg z-20 border border-slate-700 shadow-lg mb-4 flex justify-between items-center">
+    <!-- Columna de Simulación (70%) -->
+    <div class="w-full md:w-[70%] flex flex-col p-4">
+        <div id="info-hud" class="w-full max-w-4xl mx-auto bg-slate-900/70 backdrop-blur-sm p-3 rounded-lg z-20 border border-slate-700 shadow-lg mb-4 flex justify-between items-center">
             <div class="flex flex-col items-center gap-2">
                  <label class="text-xs text-gray-400">Número de Masas</label>
                  <div class="flex items-center gap-3">
@@ -125,7 +129,7 @@
                 </div>
             </div>
         </div>
-        <div id="simulation-wrapper" class="relative flex-grow flex flex-col items-center justify-center w-full max-w-2xl mx-auto">
+        <div id="simulation-wrapper" class="relative flex-grow flex flex-col items-center justify-center w-full max-w-4xl mx-auto">
             <canvas id="simulation-canvas" class="w-full rounded-lg bg-slate-800/20 border border-slate-700"></canvas>
             <div id="ruler-container" class="ruler hidden">
                 <div id="ruler-handle1" class="ruler-handle"></div>
@@ -134,22 +138,26 @@
                 <div id="ruler-text" class="ruler-text">0.00 cm</div>
             </div>
         </div>
-         <div id="graph-panel" class="w-full max-w-2xl mx-auto mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg">
+        <div id="graph-panel" class="w-full max-w-4xl mx-auto mt-4 space-y-4">
+            <div id="position-graph-container" class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg hidden">
                 <div class="flex justify-between items-center mb-2 flex-wrap">
-                    <h4 id="graph-title" class="text-sm font-bold text-sky-400">Posición vs. Tiempo</h4>
-                    <div id="graph-checkboxes-container" class="flex gap-x-2 flex-wrap"></div>
+                    <h4 class="text-sm font-bold text-sky-400">Posición vs. Tiempo</h4>
+                    <div id="graph-checkboxes-container" class="flex gap-x-4 flex-wrap"></div>
                 </div>
-                <canvas id="graph-canvas" class="w-full h-32 rounded bg-slate-800/20"></canvas>
-             </div>
-             <div class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg">
+                <canvas id="graph-canvas" class="w-full h-40 rounded bg-slate-800/20"></canvas>
+            </div>
+            <div id="energy-graph-container" class="bg-slate-900/70 p-3 rounded-lg z-20 border border-slate-700 shadow-lg hidden">
                 <div class="flex justify-between items-center mb-2 flex-wrap">
                     <h4 class="text-sm font-bold text-sky-400">Energía vs. Tiempo</h4>
-                    <div id="energy-graph-checkboxes-container" class="flex gap-x-2 flex-wrap"></div>
+                    <div id="energy-graph-checkboxes-container" class="flex gap-x-4 flex-wrap text-xs">
+                        <span style="color:#fb923c;">■ Cinética (K)</span>
+                        <span style="color:#60a5fa;">■ Potencial (P)</span>
+                        <span style="color:white;">— Total (T)</span>
+                    </div>
                 </div>
-                <canvas id="energy-graph-canvas" class="w-full h-32 rounded bg-slate-800/20"></canvas>
-             </div>
-         </div>
+                <canvas id="energy-graph-canvas" class="w-full h-40 rounded bg-slate-800/20"></canvas>
+            </div>
+        </div>
     </div>
     
     <!-- Popups -->
@@ -176,8 +184,8 @@
         <button id="data-popup-close" class="absolute top-3 right-3 text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
     </div>
 
-    <!-- Panel de Controles (40%) -->
-    <div class="w-full md:w-[40%] control-panel p-5 z-10 border-t md:border-t-0 md:border-l border-slate-800 md:h-screen md:sticky md:top-0 md:overflow-y-auto flex flex-col">
+    <!-- Panel de Controles (30%) -->
+    <div class="w-full md:w-[30%] control-panel p-5 z-10 border-t md:border-t-0 md:border-l border-slate-800 md:h-screen md:sticky md:top-0 md:overflow-y-auto flex flex-col">
         <div class="flex justify-start gap-2 pb-4 border-b border-slate-700 mb-4">
             <button id="info-btn" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs rounded-md transition flex-grow">Info y Guía</button>
             <button id="reset-btn" class="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold text-xs rounded-md transition flex-grow">Reiniciar Simulación</button>
@@ -214,11 +222,23 @@
             </div>
              <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
                 <h3 class="text-sm font-bold text-sky-400">Herramientas de Visualización</h3>
-                <label class="checkbox-label text-xs">
-                    <input type="checkbox" id="ruler-checkbox">
-                    <span class="checkmark"></span>
-                    Mostrar Regla
-                </label>
+                <div class="space-y-2">
+                    <label class="checkbox-label text-xs">
+                        <input type="checkbox" id="ruler-checkbox">
+                        <span class="checkmark"></span>
+                        Mostrar Regla
+                    </label>
+                    <label class="checkbox-label text-xs">
+                        <input type="checkbox" id="show-position-graph-checkbox">
+                        <span class="checkmark"></span>
+                        Ver Gráfica Posición-Tiempo
+                    </label>
+                    <label class="checkbox-label text-xs">
+                        <input type="checkbox" id="show-energy-graph-checkbox">
+                        <span class="checkmark"></span>
+                        Ver Gráfica Energía-Tiempo
+                    </label>
+                </div>
             </div>
             <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
                  <h3 class="text-sm font-bold text-sky-400 mb-2">Modo de Simulación</h3>
@@ -227,7 +247,11 @@
                     <label class="radio-label text-xs"><input type="radio" name="sim-mode" value="normal">Normal<span class="radio-dot"></span></label>
                     <label class="radio-label text-xs"><input type="radio" name="sim-mode" value="superposition">Superposición<span class="radio-dot"></span></label>
                  </div>
-                 <div id="normal-modes-panel" class="hidden pt-2 border-t border-slate-700"><p id="normal-modes-description" class="text-xs text-gray-400 mb-2"></p><div id="normal-modes-list" class="space-y-2"></div></div>
+                 <div id="normal-modes-panel" class="hidden pt-2 border-t border-slate-700">
+                    <p id="normal-modes-description" class="text-xs text-gray-400 mb-2"></p>
+                    <button id="setup-beats-btn" class="hidden w-full mb-2 px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-md transition">Generar Batidos (Modos + Cercanos)</button>
+                    <div id="normal-modes-list" class="space-y-2"></div>
+                 </div>
             </div>
             <div id="forced-oscillator-panel" class="bg-slate-800/50 p-3 rounded-lg space-y-3">
                 <div class="flex justify-between items-center">
@@ -240,13 +264,14 @@
                 </div>
                 <div id="forced-oscillator-controls" class="hidden space-y-2 pt-2 border-t border-slate-700">
                     <div>
-                        <label for="forcing-amplitude-slider" class="text-xs text-gray-400">Amplitud Fuerza (F₀): <span id="forcing-amplitude-label" class="font-bold text-white">1.0</span> N</label>
-                        <input type="range" id="forcing-amplitude-slider" min="0" max="20" step="0.1" value="1.0">
+                        <label for="forcing-amplitude-slider" class="text-xs text-gray-400">Amplitud Fuerza (F₀): <span id="forcing-amplitude-label" class="font-bold text-white">0.2</span> N</label>
+                        <input type="range" id="forcing-amplitude-slider" min="0" max="20" step="0.1" value="0.2">
                     </div>
                     <div>
                         <label for="forcing-frequency-slider" class="text-xs text-gray-400">Frecuencia Forzada (ωd): <span id="forcing-frequency-label" class="font-bold text-white">1.00</span> ω₀</label>
-                        <input type="range" id="forcing-frequency-slider" min="0.1" max="3" step="0.05" value="1.0">
+                        <input type="range" id="forcing-frequency-slider" min="0.1" max="3" step="0.01" value="1.0">
                     </div>
+                    <div id="resonance-frequencies-info" class="text-xs text-center text-gray-400 mt-2"></div>
                 </div>
             </div>
             <div class="bg-slate-800/50 p-3 rounded-lg space-y-3">
@@ -261,12 +286,16 @@
         <footer class="p-2 text-center text-xs text-gray-500 z-20 mt-auto pt-4">Simulación creada por <a href="https://aulaquest.com" target="_blank" rel="noopener noreferrer" class="underline hover:text-indigo-400">Aulaquest</a></footer>
     </div>
 
+    <div id="toast-notification" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-sky-500 text-white px-6 py-3 rounded-lg shadow-lg text-sm z-50 opacity-0">
+        Toast message
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const dom = {
                 canvas: document.getElementById('simulation-canvas'),
                 simulationWrapper: document.getElementById('simulation-wrapper'),
-                timeDisplay: document.querySelectorAll('#time-display'),
+                timeDisplay: document.getElementById('time-display'),
                 playPauseBtn: document.getElementById('play-pause-btn'),
                 timeResetBtn: document.getElementById('time-reset-btn'),
                 timeScaleSlider: document.getElementById('time-scale-slider'),
@@ -293,16 +322,21 @@
                 normalModesPanel: document.getElementById('normal-modes-panel'),
                 normalModesDescription: document.getElementById('normal-modes-description'),
                 normalModesList: document.getElementById('normal-modes-list'),
+                setupBeatsBtn: document.getElementById('setup-beats-btn'),
                 addDataBtn: document.getElementById('add-data-btn'),
                 viewDataBtn: document.getElementById('view-data-btn'),
                 dataTableHead: document.getElementById('data-table-head'),
                 dataTableBody: document.getElementById('data-table-body'),
+                graphPanel: document.getElementById('graph-panel'),
+                positionGraphContainer: document.getElementById('position-graph-container'),
+                energyGraphContainer: document.getElementById('energy-graph-container'),
                 graphCanvas: document.getElementById('graph-canvas'),
-                graphTitle: document.getElementById('graph-title'),
                 graphCheckboxesContainer: document.getElementById('graph-checkboxes-container'),
                 energyGraphCanvas: document.getElementById('energy-graph-canvas'),
                 energyGraphCheckboxesContainer: document.getElementById('energy-graph-checkboxes-container'),
                 rulerCheckbox: document.getElementById('ruler-checkbox'),
+                showPositionGraphCheckbox: document.getElementById('show-position-graph-checkbox'),
+                showEnergyGraphCheckbox: document.getElementById('show-energy-graph-checkbox'),
                 rulerContainer: document.getElementById('ruler-container'),
                 rulerHandle1: document.getElementById('ruler-handle1'),
                 rulerHandle2: document.getElementById('ruler-handle2'),
@@ -321,6 +355,8 @@
                 forcingAmplitudeLabel: document.getElementById('forcing-amplitude-label'),
                 forcingFrequencySlider: document.getElementById('forcing-frequency-slider'),
                 forcingFrequencyLabel: document.getElementById('forcing-frequency-label'),
+                resonanceFrequenciesInfo: document.getElementById('resonance-frequencies-info'),
+                toastNotification: document.getElementById('toast-notification'),
             };
 
             const ctx = dom.canvas.getContext('2d');
@@ -340,54 +376,128 @@
                 individualMasses: [], individualKs: [],
                 dataLog: [],
                 graphedMassIndices: [], graphData: {},
-                graphedEnergyIndices: ['total'], energyGraphData: { total: [], potential: [], kinetic: [], individual: {} },
-                pixelsPerMeter: 1, 
+                graphedEnergyIndices: ['total', 'kinetic', 'potential'], energyGraphData: { total: [], potential: [], kinetic: [] },
+                pixelsPerMeter: 500, 
                 ruler: { x1: 50, y1: 50, x2: 200, y2: 50, dragging: null },
                 isForced: false,
-                forcingAmplitude: 1.0,
+                forcingAmplitude: 0.2,
                 forcingFrequency: 1.0, 
             };
-
+            
             const colors = ['#f87171', '#fb923c', '#facc15', '#a3e635', '#4ade80', '#34d399', '#22d3ee', '#60a5fa'];
             
             class Mass {
-                constructor(eq_pos, m, color) { this.eq_pos = eq_pos; this.x = 0; this.v = 0; this.a = 0; this.m = m; this.color = color; this.radius = 12 + Math.sqrt(m) * 2; }
+                constructor(eq_pos, m, color) {
+                    this.eq_pos = eq_pos; 
+                    this.x = 0;           
+                    this.v = 0;           
+                    this.a = 0;           
+                    this.m = m;           
+                    this.color = color;
+                    this.radius = 12 + Math.sqrt(m) * 2; 
+                }
             }
-
-            function drawLine(x1, y1, x2, y2) { ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
-            function getMousePos(e) { const rect = dom.canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; return { x: clientX - rect.left, y: clientY - rect.top }; }
+            
+            function getMousePos(e) {
+                const rect = dom.canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            }
             
             function setupSimulation() {
-                state.masses = []; state.springs = [];
-                const mainAxisSize = dom.canvas.width;
-                state.pixelsPerMeter = mainAxisSize;
-                const segmentSize = mainAxisSize / (state.numMasses + 1);
-                for (let i = 0; i < state.numMasses; i++) { const massValue = state.isUniform ? state.uniformMass : state.individualMasses[i]; state.masses.push(new Mass(segmentSize * (i + 1), massValue, colors[i % colors.length])); }
-                for (let i = 0; i < state.numMasses + 1; i++) { const kValue = state.isUniform ? state.uniformK : state.individualKs[i]; state.springs.push({ k: kValue }); }
+                state.masses = [];
+                state.springs = [];
+                const systemLengthMeters = 1.0;
+                const availableWidth = dom.canvas.width - 20; 
+                state.pixelsPerMeter = availableWidth / systemLengthMeters;
+                const segmentSize = availableWidth / (state.numMasses + 1);
+
+                for (let i = 0; i < state.numMasses; i++) {
+                    const massValue = state.isUniform ? state.uniformMass : state.individualMasses[i];
+                    const eq_pos_px = 10 + segmentSize * (i + 1);
+                    state.masses.push(new Mass(eq_pos_px, massValue, colors[i % colors.length]));
+                }
+                for (let i = 0; i < state.numMasses + 1; i++) {
+                    const kValue = state.isUniform ? state.uniformK : state.individualKs[i];
+                    state.springs.push({ k: kValue });
+                }
+
                 state.modeAmplitudes = new Array(state.numMasses).fill(0);
                 state.modePhases = new Array(state.numMasses).fill(0);
+
                 buildGraphCheckboxes();
-                buildEnergyGraphCheckboxes();
                 calculateNormalModes();
+                updateResonanceInfo();
             }
             
             function calculateNormalModes() {
-                state.normalModes = []; const N = state.numMasses, k = state.uniformK, m = state.uniformMass;
-                if (!state.isUniform) { dom.normalModesList.innerHTML = `<p class="text-xs text-amber-400 p-2">El cálculo de modos solo está disponible para parámetros uniformes.</p>`; return; }
-                for (let n = 1; n <= N; n++) { let omega = 2 * Math.sqrt(k / m) * Math.sin(n * Math.PI / (2 * (N + 1))); const amplitudes = []; for (let i = 1; i <= N; i++) { amplitudes.push(Math.sin(i * n * Math.PI / (N + 1))); } state.normalModes.push({ omega, amplitudes }); }
+                state.normalModes = [];
+                const N = state.numMasses, k = state.uniformK, m = state.uniformMass;
+                
+                if (!state.isUniform) {
+                    dom.normalModesList.innerHTML = `<p class="text-xs text-amber-400 p-2">El cálculo de modos solo está disponible para parámetros uniformes.</p>`;
+                    return;
+                }
+
+                for (let n = 1; n <= N; n++) {
+                    let omega = 2 * Math.sqrt(k / m) * Math.sin(n * Math.PI / (2 * (N + 1)));
+                    const amplitudes = [];
+                    for (let i = 1; i <= N; i++) {
+                        amplitudes.push(Math.sin(i * n * Math.PI / (N + 1)));
+                    }
+                    state.normalModes.push({ omega, amplitudes });
+                }
                 renderNormalModesList();
             }
             
             function drawModePattern(canvas, amplitudes, time, direction) {
-                if (!canvas) return; const c = canvas.getContext('2d'), w = canvas.width, h = canvas.height; c.clearRect(0, 0, w, h);
+                if (!canvas) return;
+                const c = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
+                c.clearRect(0, 0, w, h);
                 const phase = Math.cos(time * 5);
-                if (direction === 'vertical') { c.strokeStyle = '#60a5fa'; c.lineWidth = 2; const allAmps = [0, ...amplitudes, 0]; const numPoints = allAmps.length; const dx = w / (numPoints - 1); const y_center = h / 2, A = h * 0.4; c.beginPath(); c.moveTo(0, y_center); for (let i = 1; i < numPoints; i++) c.lineTo(i * dx, y_center - allAmps[i] * A * phase); c.stroke(); c.fillStyle = '#60a5fa'; for (let i = 1; i < numPoints - 1; i++) { c.beginPath(); c.arc(i * dx, y_center - allAmps[i] * A * phase, 3, 0, 2 * Math.PI); c.fill(); } } else { c.strokeStyle = '#94a3b8'; c.lineWidth = 1; const y_center = h / 2; const dx = w / (amplitudes.length + 1); const A = dx * 0.35; const particleXCoords = amplitudes.map((amp, i) => (i + 1) * dx + amp * A * phase); c.beginPath(); c.moveTo(0, y_center); particleXCoords.forEach(x => c.lineTo(x, y_center)); c.lineTo(w, y_center); c.stroke(); c.fillStyle = '#60a5fa'; particleXCoords.forEach(x => { c.beginPath(); c.arc(x, y_center, 3, 0, 2 * Math.PI); c.fill(); }); }
+                
+                if (direction === 'vertical') {
+                    c.strokeStyle = '#60a5fa'; c.lineWidth = 2;
+                    const allAmps = [0, ...amplitudes, 0];
+                    const numPoints = allAmps.length;
+                    const dx = w / (numPoints - 1);
+                    const y_center = h / 2, A = h * 0.4;
+                    c.beginPath(); c.moveTo(0, y_center);
+                    for (let i = 1; i < numPoints; i++) c.lineTo(i * dx, y_center - allAmps[i] * A * phase);
+                    c.stroke();
+                    c.fillStyle = '#60a5fa';
+                    for (let i = 1; i < numPoints - 1; i++) {
+                        c.beginPath();
+                        c.arc(i * dx, y_center - allAmps[i] * A * phase, 4, 0, 2 * Math.PI);
+                        c.fill();
+                    }
+                } else {
+                    c.strokeStyle = '#94a3b8'; c.lineWidth = 1;
+                    const y_center = h / 2;
+                    const dx = w / (amplitudes.length + 1);
+                    const A = dx * 0.35;
+                    const particleXCoords = amplitudes.map((amp, i) => (i + 1) * dx + amp * A * phase);
+                    c.beginPath(); c.moveTo(0, y_center);
+                    particleXCoords.forEach(x => c.lineTo(x, y_center));
+                    c.lineTo(w, y_center); c.stroke();
+                    c.fillStyle = '#60a5fa';
+                    particleXCoords.forEach(x => {
+                        c.beginPath(); c.arc(x, y_center, 4, 0, 2 * Math.PI); c.fill();
+                    });
+                }
             }
             
             function renderNormalModesList() {
-                dom.normalModesList.innerHTML = ''; const omega_0 = (state.uniformK > 0 && state.uniformMass > 0) ? Math.sqrt(state.uniformK / state.uniformMass) : 1;
+                dom.normalModesList.innerHTML = '';
+                const omega_0 = (state.uniformK > 0 && state.uniformMass > 0) ? Math.sqrt(state.uniformK / state.uniformMass) : 1;
+
                 state.normalModes.forEach((mode, index) => {
-                    const isSuperposition = state.simulationMode === 'superposition'; const modeEl = document.createElement('div'); modeEl.className = `mode-item p-2 rounded-md border border-slate-600 flex flex-wrap justify-between items-center ${!isSuperposition && state.selectedMode === index ? 'selected' : ''}`; modeEl.dataset.index = index;
+                    const isSuperposition = state.simulationMode === 'superposition';
+                    const modeEl = document.createElement('div');
+                    modeEl.className = `mode-item p-2 rounded-md border border-slate-600 flex flex-wrap justify-between items-center ${!isSuperposition && state.selectedMode === index ? 'selected' : ''}`;
+                    modeEl.dataset.index = index;
+                    
                     let contentHTML = `
                         <div class="flex justify-between items-center w-full">
                             <div class="flex-shrink-0 flex flex-col justify-center text-xs">
@@ -397,41 +507,227 @@
                             </div>
                             <canvas class="mode-item-canvas" id="mode-canvas-${index}"></canvas>
                         </div>`;
+                    
                     if (isSuperposition) {
                         contentHTML += `
                         <div class="w-full mt-2 space-y-1">
-                            <div class="text-xs flex justify-between"><span>Amp.</span><span id="mode-amp-value-${index}">${state.modeAmplitudes[index].toFixed(2)}</span></div>
+                            <div class="text-xs flex justify-between"><span>Amplitud</span><span id="mode-amp-value-${index}">${state.modeAmplitudes[index].toFixed(2)}</span></div>
                             <input type="range" class="mode-amplitude-slider" data-index="${index}" min="0" max="1" step="0.05" value="${state.modeAmplitudes[index]}">
                             <div class="text-xs flex justify-between"><span>Fase (φ)</span><span id="mode-phase-value-${index}">${(state.modePhases[index]).toFixed(2)}π</span></div>
                             <input type="range" class="mode-phase-slider" data-index="${index}" min="-1" max="1" step="0.1" value="${state.modePhases[index]}">
                         </div>`;
                     }
+
                     modeEl.innerHTML = contentHTML;
-                    if (!isSuperposition) { modeEl.classList.add('cursor-pointer'); modeEl.addEventListener('click', () => { state.selectedMode = index; if (state.isPlaying) { state.time = 0; } renderNormalModesList(); }); }
+                    if (!isSuperposition) {
+                        modeEl.classList.add('cursor-pointer');
+                        modeEl.addEventListener('click', () => {
+                            state.selectedMode = index;
+                            if (state.isPlaying) { state.time = 0; }
+                            renderNormalModesList();
+                        });
+                    }
                     dom.normalModesList.appendChild(modeEl);
                 });
-                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const amplitude = parseFloat(e.target.value); state.modeAmplitudes[index] = amplitude; document.getElementById(`mode-amp-value-${index}`).textContent = amplitude.toFixed(2); if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
-                dom.normalModesList.querySelectorAll('.mode-phase-slider').forEach(slider => { slider.addEventListener('input', (e) => { const index = parseInt(e.target.dataset.index); const phase = parseFloat(e.target.value); state.modePhases[index] = phase; document.getElementById(`mode-phase-value-${index}`).textContent = `${phase.toFixed(2)}π`; if (!state.isPlaying && state.time === 0) updatePhysics(0); }); });
+                
+                dom.normalModesList.querySelectorAll('.mode-amplitude-slider').forEach(slider => {
+                    slider.addEventListener('input', (e) => {
+                        const index = parseInt(e.target.dataset.index);
+                        const amplitude = parseFloat(e.target.value);
+                        state.modeAmplitudes[index] = amplitude;
+                        document.getElementById(`mode-amp-value-${index}`).textContent = amplitude.toFixed(2);
+                        if (!state.isPlaying && state.time === 0) updatePhysics(0);
+                    });
+                });
+                dom.normalModesList.querySelectorAll('.mode-phase-slider').forEach(slider => {
+                    slider.addEventListener('input', (e) => {
+                        const index = parseInt(e.target.dataset.index);
+                        const phase = parseFloat(e.target.value);
+                        state.modePhases[index] = phase;
+                        document.getElementById(`mode-phase-value-${index}`).textContent = `${phase.toFixed(2)}π`;
+                        if (!state.isPlaying && state.time === 0) updatePhysics(0);
+                    });
+                });
             }
 
-            function updatePhysics(dt_scaled) { if (state.simulationMode === 'real') updateRealEvolution(dt_scaled); else if (state.simulationMode === 'normal') updateNormalModeAnimation(); else if (state.simulationMode === 'superposition') updateSuperpositionEvolution(); }
-            function updateRealEvolution(dt_scaled) { const forces = new Array(state.numMasses).fill(0); for (let i = 0; i < state.numMasses + 1; i++) { const spring = state.springs[i]; const prevDisp = (i === 0) ? 0 : state.masses[i - 1].x; const nextDisp = (i === state.numMasses) ? 0 : state.masses[i].x; const stretch = nextDisp - prevDisp; const force = spring.k * stretch; if (i > 0) forces[i - 1] += force; if (i < state.numMasses) forces[i] -= force; } if (state.isForced && state.normalModes.length > 0) { const fundamentalOmega = state.normalModes[0].omega; const drivingForce = state.forcingAmplitude * Math.cos(state.forcingFrequency * fundamentalOmega * state.time); forces[0] += drivingForce; } for (let i = 0; i < state.numMasses; i++) { if (state.isDragging && state.draggedMassIndex === i) continue; const mass = state.masses[i]; mass.a = (forces[i] - state.damping * mass.v) / mass.m; mass.v += mass.a * dt_scaled; mass.x += mass.v * dt_scaled; } }
-            function updateNormalModeAnimation() { const mode = state.normalModes[state.selectedMode]; if (!mode) return; const A = (state.oscillationDirection === 'horizontal' ? dom.canvas.width : dom.canvas.height) / (state.numMasses * 4); state.masses.forEach((mass, i) => { mass.x = A * mode.amplitudes[i] * Math.cos(mode.omega * state.time); mass.v = -A * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time); }); }
-            function updateSuperpositionEvolution() { state.masses.forEach(m => { m.x = 0; m.v = 0; }); const A_base = (state.oscillationDirection === 'horizontal' ? dom.canvas.width : dom.canvas.height) / (state.numMasses * 4); state.normalModes.forEach((mode, n) => { const amp = state.modeAmplitudes[n] * A_base; const phase = state.modePhases[n] * Math.PI; if (amp === 0) return; state.masses.forEach((mass, i) => { mass.x += amp * mode.amplitudes[i] * Math.cos(mode.omega * state.time + phase); mass.v += -amp * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time + phase); }); }); }
+            function updatePhysics(dt_scaled) {
+                if (state.simulationMode === 'real') updateRealEvolution(dt_scaled);
+                else if (state.simulationMode === 'normal') updateNormalModeAnimation();
+                else if (state.simulationMode === 'superposition') updateSuperpositionEvolution();
+            }
+
+            function calculateForces(forcesArray) {
+                forcesArray.fill(0);
+                for (let i = 0; i < state.numMasses + 1; i++) {
+                    const spring = state.springs[i];
+                    const prevDisp = (i === 0) ? 0 : state.masses[i - 1].x;
+                    const nextDisp = (i === state.numMasses) ? 0 : state.masses[i].x;
+                    const stretch = nextDisp - prevDisp;
+                    const force = spring.k * stretch;
+                    if (i > 0) forcesArray[i - 1] += force;
+                    if (i < state.numMasses) forcesArray[i] -= force;
+                }
+                if (state.isForced && state.normalModes.length > 0) {
+                    const omega_0 = Math.sqrt(state.uniformK / state.uniformMass);
+                    const drivingFrequencyRadS = state.forcingFrequency * omega_0;
+                    const drivingForce = state.forcingAmplitude * Math.cos(drivingFrequencyRadS * state.time);
+                    forcesArray[0] += drivingForce;
+                }
+            }
+
+            function updateRealEvolution(dt_scaled) {
+                const forces = new Array(state.numMasses);
+
+                for (let i = 0; i < state.numMasses; i++) {
+                    if (state.isDragging && state.draggedMassIndex === i) continue;
+                    const mass = state.masses[i];
+                    mass.v += 0.5 * mass.a * dt_scaled;
+                    mass.x += mass.v * dt_scaled;
+                }
+
+                calculateForces(forces);
+                
+                for (let i = 0; i < state.numMasses; i++) {
+                    if (state.isDragging && state.draggedMassIndex === i) continue;
+                    const mass = state.masses[i];
+                    mass.a = forces[i] / mass.m;
+                    mass.v += 0.5 * mass.a * dt_scaled;
+                    if (state.damping > 0) {
+                       mass.v *= (1 - state.damping * dt_scaled);
+                    }
+                }
+
+                for (let i = 0; i < state.numMasses; i++) {
+                    const mass = state.masses[i];
+                    const current_pos_px = mass.eq_pos + mass.x * state.pixelsPerMeter;
+
+                    if (state.oscillationDirection === 'horizontal') {
+                        const prevMass = state.masses[i - 1];
+                        const leftBoundary = prevMass 
+                            ? (prevMass.eq_pos + prevMass.x * state.pixelsPerMeter) + prevMass.radius + mass.radius
+                            : 10 + mass.radius;
+
+                        if (current_pos_px < leftBoundary) {
+                            mass.x = (leftBoundary - mass.eq_pos) / state.pixelsPerMeter;
+                            mass.v *= -0.9;
+                        }
+
+                        const nextMass = state.masses[i + 1];
+                        const rightBoundary = nextMass
+                            ? (nextMass.eq_pos + nextMass.x * state.pixelsPerMeter) - nextMass.radius - mass.radius
+                            : dom.canvas.width - 10 - mass.radius;
+
+                        if (current_pos_px > rightBoundary) {
+                            mass.x = (rightBoundary - mass.eq_pos) / state.pixelsPerMeter;
+                            mass.v *= -0.9;
+                        }
+                    } else {
+                        const y_center = dom.canvas.height / 2;
+                        const topBoundary = mass.radius;
+                        const bottomBoundary = dom.canvas.height - mass.radius;
+                        const current_y_px = y_center + mass.x * state.pixelsPerMeter;
+
+                        if (current_y_px < topBoundary) {
+                            mass.x = (topBoundary - y_center) / state.pixelsPerMeter;
+                            mass.v *= -0.9;
+                        }
+                        if (current_y_px > bottomBoundary) {
+                            mass.x = (bottomBoundary - y_center) / state.pixelsPerMeter;
+                            mass.v *= -0.9;
+                        }
+                    }
+                }
+            }
+
+
+            function updateNormalModeAnimation() {
+                const mode = state.normalModes[state.selectedMode];
+                if (!mode) return;
+                const A = 0.08;
+                state.masses.forEach((mass, i) => {
+                    mass.x = A * mode.amplitudes[i] * Math.cos(mode.omega * state.time);
+                    mass.v = -A * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time);
+                });
+            }
+
+            function updateSuperpositionEvolution() {
+                state.masses.forEach(m => { m.x = 0; m.v = 0; });
+                const A_base = 0.08;
+                state.normalModes.forEach((mode, n) => {
+                    const amp = state.modeAmplitudes[n] * A_base;
+                    const phase = state.modePhases[n] * Math.PI;
+                    if (amp === 0) return;
+                    state.masses.forEach((mass, i) => {
+                        mass.x += amp * mode.amplitudes[i] * Math.cos(mode.omega * state.time + phase);
+                        mass.v += -amp * mode.amplitudes[i] * mode.omega * Math.sin(mode.omega * state.time + phase);
+                    });
+                });
+            }
             
             function draw() {
-                ctx.clearRect(0, 0, dom.canvas.width, dom.canvas.height); if (state.masses.length === 0) return; const y_center = dom.canvas.height / 2;
-                ctx.fillStyle = '#64748b'; ctx.fillRect(0, y_center - 50, 10, 100); ctx.fillRect(dom.canvas.width - 10, y_center - 50, 10, 100);
-                if (state.isForced && state.normalModes.length > 0) { const fundamentalOmega = state.normalModes[0].omega; const actuatorOffset = 10 * Math.cos(state.forcingFrequency * fundamentalOmega * state.time); ctx.fillStyle = '#a5b4fc'; if (state.oscillationDirection === 'horizontal') { ctx.fillRect(0, y_center - 40, 15 + actuatorOffset, 80); } else { ctx.fillRect(0, y_center - 40 + actuatorOffset, 10, 80); } }
-                if (state.oscillationDirection === 'horizontal') { let last_x = 10; state.masses.forEach((mass) => { drawLine(last_x, y_center, mass.eq_pos + mass.x, y_center); last_x = mass.eq_pos + mass.x; }); drawLine(last_x, y_center, dom.canvas.width - 10, y_center); } else { let last_pos = { x: 10, y: y_center }; state.masses.forEach(mass => { drawLine(last_pos.x, last_pos.y, mass.eq_pos, y_center + mass.x); last_pos = { x: mass.eq_pos, y: y_center + mass.x }; }); drawLine(last_pos.x, last_pos.y, dom.canvas.width - 10, y_center); }
-                state.masses.forEach((mass, i) => { const screenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const screenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; ctx.beginPath(); ctx.arc(screenX, screenY, mass.radius, 0, Math.PI * 2); ctx.fillStyle = mass.color; ctx.fill(); if (state.graphedMassIndices.includes(i)) { ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke(); } });
+                ctx.clearRect(0, 0, dom.canvas.width, dom.canvas.height);
+                if (state.masses.length === 0) return;
+                const y_center = dom.canvas.height / 2;
+
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(0, y_center - 50, 10, 100);
+                ctx.fillRect(dom.canvas.width - 10, y_center - 50, 10, 100);
+
+                if (state.isForced && state.normalModes.length > 0) {
+                    const omega_0 = Math.sqrt(state.uniformK / state.uniformMass);
+                    const drivingFrequencyRadS = state.forcingFrequency * omega_0;
+                    const actuatorOffset = 10 * Math.cos(drivingFrequencyRadS * state.time);
+                    ctx.fillStyle = '#a5b4fc';
+                    if (state.oscillationDirection === 'horizontal') {
+                        ctx.fillRect(0, y_center - 40, 15 + actuatorOffset, 80);
+                    } else {
+                        ctx.fillRect(0, y_center - 40 + actuatorOffset, 10, 80);
+                    }
+                }
+                
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 2;
+
+                if (state.oscillationDirection === 'horizontal') {
+                    let last_x_px = 10;
+                    state.masses.forEach((mass) => {
+                        const current_x_px = mass.eq_pos + mass.x * state.pixelsPerMeter;
+                        ctx.beginPath(); ctx.moveTo(last_x_px, y_center); ctx.lineTo(current_x_px, y_center); ctx.stroke();
+                        last_x_px = current_x_px;
+                    });
+                    ctx.beginPath(); ctx.moveTo(last_x_px, y_center); ctx.lineTo(dom.canvas.width - 10, y_center); ctx.stroke();
+                } else {
+                    let last_pos_px = { x: 10, y: y_center };
+                    state.masses.forEach(mass => {
+                        const current_y_px = y_center + mass.x * state.pixelsPerMeter;
+                        ctx.beginPath(); ctx.moveTo(last_pos_px.x, last_pos_px.y); ctx.lineTo(mass.eq_pos, current_y_px); ctx.stroke();
+                        last_pos_px = { x: mass.eq_pos, y: current_y_px };
+                    });
+                    ctx.beginPath(); ctx.moveTo(last_pos_px.x, last_pos_px.y); ctx.lineTo(dom.canvas.width - 10, y_center); ctx.stroke();
+                }
+                
+                state.masses.forEach((mass, i) => {
+                    const screenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x * state.pixelsPerMeter : mass.eq_pos;
+                    const screenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x * state.pixelsPerMeter;
+                    ctx.beginPath(); ctx.arc(screenX, screenY, mass.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = mass.color; ctx.fill();
+                    if (state.graphedMassIndices.includes(i)) {
+                        ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
+                    }
+                });
             }
 
-            function animateModePreviews() { if (state.simulationMode === 'real' || state.normalModes.length === 0) return; state.normalModes.forEach((mode, index) => { drawModePattern(document.getElementById(`mode-canvas-${index}`), mode.amplitudes, state.time, state.oscillationDirection); }); }
+            function animateModePreviews() {
+                if (state.simulationMode === 'real' || state.normalModes.length === 0) return;
+                state.normalModes.forEach((mode, index) => {
+                    drawModePattern(document.getElementById(`mode-canvas-${index}`), mode.amplitudes, state.time, state.oscillationDirection);
+                });
+            }
             
             function toggleMassForGraphing(index) {
                 const i = state.graphedMassIndices.indexOf(index);
-                if (i > -1) { state.graphedMassIndices.splice(i, 1); } else { state.graphedMassIndices.push(index); }
+                if (i > -1) { state.graphedMassIndices.splice(i, 1); } 
+                else { state.graphedMassIndices.push(index); }
+                
                 if (!state.graphData[index]) { state.graphData[index] = []; }
                 buildGraphCheckboxes();
             }
@@ -439,175 +735,678 @@
             function drawGraph() {
                 graphCtx.clearRect(0, 0, dom.graphCanvas.width, dom.graphCanvas.height); 
                 if (state.graphedMassIndices.length === 0) return;
-                const w = dom.graphCanvas.width, h = dom.graphCanvas.height; const padding = { top: 10, bottom: 20, left: 30, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
+
+                const w = dom.graphCanvas.width, h = dom.graphCanvas.height;
+                const padding = { top: 10, bottom: 20, left: 30, right: 10 };
+                const plotWidth = w - padding.left - padding.right;
+                const plotHeight = h - padding.top - padding.bottom;
+                
                 let minVal = 0, maxVal = 0; 
+                let hasData = false;
                 state.graphedMassIndices.forEach(idx => {
-                    if(state.graphData[idx]) {
-                        state.graphData[idx].forEach(p => { minVal = Math.min(minVal, p.pos); maxVal = Math.max(maxVal, p.pos); });
+                    const data = state.graphData[idx];
+                    if(data && data.length > 0) {
+                        hasData = true;
+                        const startIndex = Math.max(0, data.length - plotWidth);
+                        for (let i = startIndex; i < data.length; i++) {
+                            minVal = Math.min(minVal, data[i].pos);
+                            maxVal = Math.max(maxVal, data[i].pos);
+                        }
                     }
                 });
+
+                if (!hasData) return;
+                
                 const absMax = Math.max(Math.abs(minVal), Math.abs(maxVal));
-                const range = Math.max(0.01 / state.pixelsPerMeter, absMax * 2) * 100;
-                const scaleY = plotHeight / (range || 1);
+                const rangeCm = Math.max(1, absMax * 2 * 100); 
+                const scaleY = plotHeight / (rangeCm || 1);
+                
                 state.graphedMassIndices.forEach(idx => {
                     const data = state.graphData[idx];
                     if(!data || data.length < 2) return;
-                    graphCtx.strokeStyle = colors[idx % colors.length]; graphCtx.lineWidth = 2; graphCtx.beginPath();
-                    for (let i = 0; i < data.length; i++) { const screenX = padding.left + (i / (data.length - 1)) * plotWidth; const screenY = (h / 2) - (data[i].pos*100) * scaleY; if (i === 0) graphCtx.moveTo(screenX, screenY); else graphCtx.lineTo(screenX, screenY); }
+                    
+                    graphCtx.strokeStyle = colors[idx % colors.length];
+                    graphCtx.lineWidth = 1.5;
+                    graphCtx.beginPath();
+
+                    const pointsToDraw = Math.min(data.length, plotWidth);
+                    const startIndex = data.length - pointsToDraw;
+
+                    for (let i = 0; i < pointsToDraw; i++) {
+                        const point = data[startIndex + i];
+                        const screenX = padding.left + plotWidth - (pointsToDraw - 1 - i);
+                        const screenY = (h / 2) - (point.pos * 100) * scaleY;
+                        if (i === 0) graphCtx.moveTo(screenX, screenY);
+                        else graphCtx.lineTo(screenX, screenY);
+                    }
                     graphCtx.stroke();
                 });
-                graphCtx.strokeStyle = '#64748b'; graphCtx.lineWidth = 1; graphCtx.beginPath(); graphCtx.moveTo(padding.left, padding.top); graphCtx.lineTo(padding.left, h - padding.bottom); graphCtx.lineTo(w - padding.right, h - padding.bottom); graphCtx.stroke();
-                graphCtx.fillStyle = '#94a3b8'; graphCtx.font = '10px Inter'; const maxLabel = (range / 2).toFixed(1); const minLabel = (-range / 2).toFixed(1);
-                graphCtx.fillText(maxLabel + ' cm', 0, padding.top + 3); graphCtx.fillText(minLabel + ' cm', 0, h - padding.bottom);
+
+                graphCtx.strokeStyle = '#64748b'; graphCtx.lineWidth = 1;
+                graphCtx.beginPath();
+                graphCtx.moveTo(padding.left, padding.top);
+                graphCtx.lineTo(padding.left, h - padding.bottom);
+                graphCtx.lineTo(w - padding.right, h - padding.bottom);
+                graphCtx.stroke();
+                
+                graphCtx.fillStyle = '#94a3b8'; graphCtx.font = '10px Inter';
+                const maxLabel = (rangeCm / 2).toFixed(1);
+                const minLabel = (-rangeCm / 2).toFixed(1);
+                graphCtx.fillText(maxLabel + ' cm', 0, padding.top + 3);
+                graphCtx.fillText(minLabel + ' cm', 0, h - padding.bottom);
             }
 
             function drawEnergyGraph() {
-                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height); if (state.energyGraphData.total.length < 2) return;
-                const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height; const padding = { top: 10, bottom: 20, left: 35, right: 10 }; const plotWidth = w - padding.left - padding.right; const plotHeight = h - padding.top - padding.bottom;
-                let maxE = 0; 
-                state.graphedEnergyIndices.forEach(idx => {
-                    let data;
-                    if(idx === 'total') { data = state.energyGraphData.total; }
-                    else if(idx === 'potential') { data = state.energyGraphData.potential; }
-                    else if(idx === 'kinetic') { data = state.energyGraphData.kinetic; }
-                    else if(state.energyGraphData.individual[idx]) { data = state.energyGraphData.individual[idx]; }
-                    if (data) data.forEach(p => { maxE = Math.max(maxE, p); });
-                });
+                energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height);
+                const data = state.energyGraphData;
+                if (!data || data.total.length < 2) return;
+
+                const w = dom.energyGraphCanvas.width, h = dom.energyGraphCanvas.height;
+                const padding = { top: 10, bottom: 20, left: 35, right: 10 };
+                const plotWidth = w - padding.left - padding.right;
+                const plotHeight = h - padding.top - padding.bottom;
+                
+                let maxE = 0;
+                data.total.forEach(p => { maxE = Math.max(maxE, p); });
                 maxE = Math.max(0.001, maxE);
                 const scaleY = plotHeight / maxE;
-                
-                state.graphedEnergyIndices.forEach(idx => {
-                    let data, color;
-                    if(idx === 'total') { data = state.energyGraphData.total; color = 'white'; }
-                    else if(idx === 'potential') { data = state.energyGraphData.potential; color = '#60a5fa'; }
-                    else if(idx === 'kinetic') { data = state.energyGraphData.kinetic; color = '#fb923c'; }
-                    else { data = state.energyGraphData.individual[idx]; color = colors[idx % colors.length]; }
 
-                    if(!data || data.length < 2) return;
-                    energyGraphCtx.strokeStyle = color; energyGraphCtx.lineWidth = (idx === 'total' ? 2 : 1.5);
-                    energyGraphCtx.beginPath();
-                    for (let j = 0; j < data.length; j++) {
-                        const screenX = padding.left + (j / (data.length - 1)) * plotWidth;
-                        const screenY = h - padding.bottom - data[j] * scaleY;
-                        if (j === 0) energyGraphCtx.moveTo(screenX, screenY); else energyGraphCtx.lineTo(screenX, screenY);
-                    }
-                    energyGraphCtx.stroke();
-                });
+                const kineticData = data.kinetic;
+                const totalData = data.total;
+
+                // Draw Potential Energy Area (P = T - K)
+                energyGraphCtx.fillStyle = 'rgba(96, 165, 250, 0.6)'; // blue-400 with opacity
+                energyGraphCtx.beginPath();
+                energyGraphCtx.moveTo(padding.left, h - padding.bottom);
+                for (let j = 0; j < kineticData.length; j++) {
+                    const screenX = padding.left + (j / (kineticData.length - 1)) * plotWidth;
+                    const screenY = h - padding.bottom - (totalData[j] - kineticData[j]) * scaleY;
+                    energyGraphCtx.lineTo(screenX, screenY);
+                }
+                energyGraphCtx.lineTo(padding.left + plotWidth, h - padding.bottom);
+                energyGraphCtx.closePath();
+                energyGraphCtx.fill();
+
+                // Draw Kinetic Energy Area (K)
+                energyGraphCtx.fillStyle = 'rgba(251, 146, 60, 0.6)'; // orange-400 with opacity
+                energyGraphCtx.beginPath();
+                energyGraphCtx.moveTo(padding.left, h - padding.bottom);
+                for (let j = 0; j < kineticData.length; j++) {
+                    const screenX = padding.left + (j / (kineticData.length - 1)) * plotWidth;
+                    const screenY = h - padding.bottom - kineticData[j] * scaleY;
+                    energyGraphCtx.lineTo(screenX, screenY);
+                }
+                energyGraphCtx.lineTo(padding.left + plotWidth, h - padding.bottom);
+                energyGraphCtx.closePath();
+                energyGraphCtx.fill();
+
+                // Draw Total Energy Line
+                energyGraphCtx.strokeStyle = 'white';
+                energyGraphCtx.lineWidth = 2;
+                energyGraphCtx.beginPath();
+                for (let j = 0; j < totalData.length; j++) {
+                    const screenX = padding.left + (j / (totalData.length - 1)) * plotWidth;
+                    const screenY = h - padding.bottom - totalData[j] * scaleY;
+                    if (j === 0) energyGraphCtx.moveTo(screenX, screenY);
+                    else energyGraphCtx.lineTo(screenX, screenY);
+                }
+                energyGraphCtx.stroke();
                 
-                energyGraphCtx.strokeStyle = '#64748b'; energyGraphCtx.lineWidth = 1; energyGraphCtx.beginPath(); energyGraphCtx.moveTo(padding.left, padding.top); energyGraphCtx.lineTo(padding.left, h - padding.bottom); energyGraphCtx.lineTo(w - padding.right, h - padding.bottom); energyGraphCtx.stroke();
+                // Draw Axes
+                energyGraphCtx.strokeStyle = '#64748b'; energyGraphCtx.lineWidth = 1;
+                energyGraphCtx.beginPath();
+                energyGraphCtx.moveTo(padding.left, padding.top);
+                energyGraphCtx.lineTo(padding.left, h - padding.bottom);
+                energyGraphCtx.lineTo(w - padding.right, h - padding.bottom);
+                energyGraphCtx.stroke();
+                
                 energyGraphCtx.fillStyle = '#94a3b8'; energyGraphCtx.font = '10px Inter';
                 const maxLabel = (maxE > 1000 || (maxE < 0.01 && maxE > 0)) ? maxE.toExponential(1) : maxE.toFixed(2);
-                energyGraphCtx.fillText(maxLabel + ' J', 0, padding.top + 3); energyGraphCtx.fillText('0', 15, h - padding.bottom);
+                energyGraphCtx.fillText(maxLabel + ' J', 0, padding.top + 3);
+                energyGraphCtx.fillText('0 J', 0, h - padding.bottom);
             }
             
-            function updateRuler() { if (dom.rulerContainer.classList.contains('hidden')) return; const { x1, y1, x2, y2 } = state.ruler; dom.rulerHandle1.style.transform = `translate(${x1 - 8}px, ${y1 - 8}px)`; dom.rulerHandle2.style.transform = `translate(${x2 - 8}px, ${y2 - 8}px)`; const dx = x2 - x1, dy = y2 - y1; const distPx = Math.hypot(dx, dy); const angle = Math.atan2(dy, dx) * 180 / Math.PI; dom.rulerLine.style.width = `${distPx}px`; dom.rulerLine.style.transform = `translate(${x1}px, ${y1}px) rotate(${angle}deg)`; const distMeters = distPx / state.pixelsPerMeter; dom.rulerText.textContent = `${(distMeters * 100).toFixed(2)} cm`; dom.rulerText.style.transform = `translate(${(x1 + x2) / 2}px, ${(y1 + y2) / 2 - 20}px)`; }
+            
+            function updateRuler() {
+                if (dom.rulerContainer.classList.contains('hidden')) return;
+                const { x1, y1, x2, y2 } = state.ruler;
+                dom.rulerHandle1.style.transform = `translate(${x1 - 8}px, ${y1 - 8}px)`;
+                dom.rulerHandle2.style.transform = `translate(${x2 - 8}px, ${y2 - 8}px)`;
+                const dx = x2 - x1, dy = y2 - y1;
+                const distPx = Math.hypot(dx, dy);
+                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                dom.rulerLine.style.width = `${distPx}px`;
+                dom.rulerLine.style.transform = `translate(${x1}px, ${y1}px) rotate(${angle}deg)`;
+                const distMeters = distPx / state.pixelsPerMeter;
+                dom.rulerText.textContent = `${(distMeters * 100).toFixed(2)} cm`;
+                dom.rulerText.style.transform = `translate(${(x1 + x2) / 2}px, ${(y1 + y2) / 2 - 20}px)`;
+            }
             
             function gameLoop() {
-                if (state.isPlaying) { const dt_scaled = state.dt * state.timeScale; state.time += dt_scaled; updatePhysics(dt_scaled); state.graphedMassIndices.forEach(idx => { if (state.masses[idx]) { if(!state.graphData[idx]) state.graphData[idx] = []; state.graphData[idx].push({ time: state.time, pos: state.masses[idx].x }); if (state.graphData[idx].length > 300) state.graphData[idx].shift(); } }); const energies = calculateEnergies(); if(!state.energyGraphData.total) state.energyGraphData.total = []; state.energyGraphData.total.push(energies.total); if(!state.energyGraphData.potential) state.energyGraphData.potential = []; state.energyGraphData.potential.push(energies.potential); if(!state.energyGraphData.kinetic) state.energyGraphData.kinetic = []; state.energyGraphData.kinetic.push(energies.kinetic); for(let i=0; i < state.numMasses; i++){ if(!state.energyGraphData.individual[i]) state.energyGraphData.individual[i] = []; state.energyGraphData.individual[i].push(energies.individual[i]); if(state.energyGraphData.individual[i].length > 300) state.energyGraphData.individual[i].shift();} if (state.energyGraphData.total.length > 300) {state.energyGraphData.total.shift(); state.energyGraphData.potential.shift(); state.energyGraphData.kinetic.shift();} }
-                dom.timeDisplay.forEach(el => el.textContent = state.time.toFixed(2) + ' s');
-                draw(); animateModePreviews(); drawGraph(); drawEnergyGraph(); updateRuler();
+                if (state.isPlaying) {
+                    const dt_scaled = state.dt * state.timeScale;
+                    state.time += dt_scaled;
+                    updatePhysics(dt_scaled);
+                    
+                    const maxGraphPoints = 2500; 
+                    state.graphedMassIndices.forEach(idx => {
+                        if (state.masses[idx]) {
+                            if(!state.graphData[idx]) state.graphData[idx] = [];
+                            state.graphData[idx].push({ time: state.time, pos: state.masses[idx].x });
+                            if (state.graphData[idx].length > maxGraphPoints) state.graphData[idx].shift();
+                        }
+                    });
+                    
+                    const energies = calculateEnergies();
+                    state.energyGraphData.total.push(energies.total);
+                    state.energyGraphData.potential.push(energies.potential);
+                    state.energyGraphData.kinetic.push(energies.kinetic);
+                    
+                    if (state.energyGraphData.total.length > 300) {
+                        state.energyGraphData.total.shift();
+                        state.energyGraphData.potential.shift();
+                        state.energyGraphData.kinetic.shift();
+                    }
+                }
+                
+                dom.timeDisplay.textContent = state.time.toFixed(2) + ' s';
+                draw();
+                animateModePreviews();
+                if(!dom.positionGraphContainer.classList.contains('hidden')) drawGraph();
+                if(!dom.energyGraphContainer.classList.contains('hidden')) drawEnergyGraph();
+                updateRuler();
+                
                 animationFrameId = requestAnimationFrame(gameLoop);
             }
 
-            function resizeCanvas() { const container = dom.simulationWrapper; let width = container.clientWidth; if (width === 0) width = Math.max(300, window.innerWidth * 0.55); dom.canvas.width = width; dom.canvas.height = state.oscillationDirection === 'horizontal' ? width / 3 : width / 1.5; [dom.graphCanvas, dom.energyGraphCanvas].forEach(c => { c.width = c.clientWidth; c.height = c.clientHeight; }); setupSimulation(); draw(); }
-            function createIndividualControls() { dom.individualParamsControls.innerHTML = ''; let massHtml = '<h4 class="text-xs text-gray-400 mt-2">Masas Individuales (kg)</h4>'; for(let i=0; i < state.numMasses; i++) { massHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">m<sub>${i+1}</sub></label><input type="range" class="individual-mass-slider" data-index="${i}" min="0.1" max="5" step="0.1" value="${state.individualMasses[i]}"><span class="w-10 text-right text-xs">${state.individualMasses[i].toFixed(1)}</span></div>`; } dom.individualParamsControls.innerHTML += massHtml; let kHtml = '<h4 class="text-xs text-gray-400 mt-2">Constantes Elásticas (N/m)</h4>'; for(let i=0; i < state.numMasses + 1; i++) { kHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">k<sub>${i+1}</sub></label><input type="range" class="individual-k-slider" data-index="${i}" min="1" max="50" step="1" value="${state.individualKs[i]}"><span class="w-10 text-right text-xs">${state.individualKs[i].toFixed(1)}</span></div>`; } dom.individualParamsControls.innerHTML += kHtml; dom.individualParamsControls.querySelectorAll('.individual-mass-slider').forEach(slider => { slider.addEventListener('input', e => { const index = parseInt(e.target.dataset.index); const value = parseFloat(e.target.value); state.individualMasses[index] = value; e.target.nextElementSibling.textContent = value.toFixed(1); setupSimulation(); }); }); dom.individualParamsControls.querySelectorAll('.individual-k-slider').forEach(slider => { slider.addEventListener('input', e => { const index = parseInt(e.target.dataset.index); const value = parseFloat(e.target.value); state.individualKs[index] = value; e.target.nextElementSibling.textContent = value.toFixed(1); setupSimulation(); }); }); }
-            function handleSimModeChange() { state.simulationMode = document.querySelector('input[name="sim-mode"]:checked').value; const isNormalOrSuper = state.simulationMode === 'normal' || state.simulationMode === 'superposition'; dom.normalModesPanel.classList.toggle('hidden', !isNormalOrSuper); if (isNormalOrSuper) { if (state.simulationMode === 'normal') { dom.normalModesDescription.textContent = "Selecciona un modo para visualizar su patrón y frecuencia."; } else { dom.normalModesDescription.textContent = "Ajusta la amplitud de cada modo para crear una superposición."; } renderNormalModesList(); animateModePreviews(); } if (state.simulationMode !== 'real') { if (state.isPlaying) state.time = 0; state.masses.forEach(m => { m.x = 0; m.v = 0; }); } }
-            function handleMassCountChange(delta) { let newCount = state.numMasses + delta; newCount = Math.max(2, Math.min(8, newCount)); if (newCount === state.numMasses) return; state.numMasses = newCount; dom.massCountLabelHud.textContent = state.numMasses; state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK); state.graphedMassIndices = []; state.graphData = {}; state.energyGraphData = { total: [], potential: [], kinetic: [], individual: {} }; if(!state.isUniform) createIndividualControls(); setupSimulation(); }
-            function togglePlayPause() { state.isPlaying = !state.isPlaying; dom.playPauseBtn.textContent = state.isPlaying ? 'Pausa' : 'Play'; }
-            function calculateEnergies() { let kinetic = 0, potential = 0, individual = []; state.masses.forEach(mass => { const ke = 0.5 * mass.m * (mass.v * state.pixelsPerMeter) * (mass.v * state.pixelsPerMeter); kinetic += ke; individual.push(ke); }); for (let i = 0; i < state.numMasses + 1; i++) { const stretch = (i < state.numMasses ? state.masses[i].x : 0) - (i > 0 ? state.masses[i - 1].x : 0); potential += 0.5 * state.springs[i].k * (stretch / state.pixelsPerMeter) * (stretch / state.pixelsPerMeter); } return { kinetic, potential, total: kinetic + potential, individual }; }
-            function addDataToLog() { const energies = calculateEnergies(); const snapshot = { time: state.time, mode: state.simulationMode, numMasses: state.numMasses, damping: state.damping, kineticEnergy: energies.kinetic, potentialEnergy: energies.potential, totalEnergy: energies.total, positions: state.masses.map(m => m.x) }; state.dataLog.push(snapshot); renderDataLog(); renderDataLog(true); }
+            function calculateEnergies() {
+                let kinetic = 0, potential = 0;
+                state.masses.forEach(mass => {
+                    kinetic += 0.5 * mass.m * mass.v * mass.v;
+                });
+                for (let i = 0; i < state.numMasses + 1; i++) {
+                    const stretch_m = (i < state.numMasses ? state.masses[i].x : 0) - (i > 0 ? state.masses[i - 1].x : 0);
+                    potential += 0.5 * state.springs[i].k * stretch_m * stretch_m;
+                }
+                return { kinetic, potential, total: kinetic + potential };
+            }
+
+            function handleDragStart(e) {
+                const pos = getMousePos(e);
+                let didClickOnMass = false;
+                let clickedMassIndex = -1;
+                
+                if (e.target === dom.rulerHandle1 || e.target === dom.rulerHandle2) return;
+                
+                state.masses.forEach((mass, i) => {
+                    const y_center = dom.canvas.height / 2;
+                    const massScreenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x * state.pixelsPerMeter : mass.eq_pos;
+                    const massScreenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x * state.pixelsPerMeter;
+                    const dist = Math.hypot(pos.x - massScreenX, pos.y - massScreenY);
+                    
+                    if (dist < mass.radius * 1.5) {
+                        didClickOnMass = true;
+                        clickedMassIndex = i;
+                    }
+                });
+                
+                if (didClickOnMass) {
+                    if (e.type === 'touchstart') e.preventDefault();
+                    toggleMassForGraphing(clickedMassIndex);
+                    if (state.simulationMode === 'real') {
+                        state.isDragging = true;
+                        state.draggedMassIndex = clickedMassIndex;
+                        dom.canvas.style.cursor = 'grabbing';
+                    }
+                }
+            }
+
+            function handleDragMove(e) {
+                if (state.isDragging) e.preventDefault();
+                
+                if (state.ruler.dragging) {
+                    const rect = dom.canvas.getBoundingClientRect();
+                    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                    const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+                    state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'x1' : 'x2'] = x;
+                    state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'y1' : 'y2'] = y;
+                    return;
+                }
+                
+                if (!state.isDragging || state.draggedMassIndex === -1) return;
+                
+                const pos = getMousePos(e);
+                const mass = state.masses[state.draggedMassIndex];
+                
+                if (state.oscillationDirection === 'horizontal') {
+                    let new_pos_px = pos.x;
+                    const prevMass = state.masses[state.draggedMassIndex - 1];
+                    const nextMass = state.masses[state.draggedMassIndex + 1];
+                    const leftBoundary = prevMass 
+                        ? (prevMass.eq_pos + prevMass.x * state.pixelsPerMeter) + prevMass.radius + mass.radius
+                        : 10 + mass.radius;
+                    const rightBoundary = nextMass
+                        ? (nextMass.eq_pos + nextMass.x * state.pixelsPerMeter) - nextMass.radius - mass.radius
+                        : dom.canvas.width - 10 - mass.radius;
+                    new_pos_px = Math.max(leftBoundary, Math.min(new_pos_px, rightBoundary));
+                    mass.x = (new_pos_px - mass.eq_pos) / state.pixelsPerMeter;
+                } else {
+                    let new_pos_px = pos.y;
+                    const topBoundary = mass.radius;
+                    const bottomBoundary = dom.canvas.height - mass.radius;
+                    new_pos_px = Math.max(topBoundary, Math.min(new_pos_px, bottomBoundary));
+                    mass.x = (new_pos_px - (dom.canvas.height / 2)) / state.pixelsPerMeter;
+                }
+                mass.v = 0;
+            }
+
+            function handleDragEnd() {
+                if (state.isDragging) {
+                    state.isDragging = false;
+                    state.draggedMassIndex = -1;
+                    dom.canvas.style.cursor = 'grab';
+                }
+            }
+            
+            function handleMassCountChange(delta) {
+                let newCount = state.numMasses + delta;
+                newCount = Math.max(2, Math.min(8, newCount));
+                if (newCount === state.numMasses) return;
+                
+                state.numMasses = newCount;
+                dom.massCountLabelHud.textContent = state.numMasses;
+                
+                state.individualMasses = Array(state.numMasses).fill(state.uniformMass);
+                state.individualKs = Array(state.numMasses + 1).fill(state.uniformK);
+                state.graphedMassIndices = [];
+                state.graphData = {};
+                state.energyGraphData = { total: [], potential: [], kinetic: [] };
+                
+                if(!state.isUniform) createIndividualControls();
+                setupSimulation();
+            }
+
+            function resizeCanvas() {
+                const container = dom.simulationWrapper;
+                let width = container.clientWidth;
+                if (width === 0) width = Math.max(300, window.innerWidth * 0.65);
+                
+                dom.canvas.width = width;
+                dom.canvas.height = state.oscillationDirection === 'horizontal' ? width / 3 : width / 1.5;
+                
+                [dom.graphCanvas, dom.energyGraphCanvas].forEach(c => {
+                    c.width = c.clientWidth;
+                    c.height = c.clientHeight;
+                });
+                
+                setupSimulation();
+                draw();
+            }
+
+            function createIndividualControls() {
+                dom.individualParamsControls.innerHTML = '';
+                let massHtml = '<h4 class="text-xs text-gray-400 mt-2">Masas Individuales (kg)</h4>';
+                for(let i=0; i < state.numMasses; i++) {
+                    massHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">m<sub>${i+1}</sub></label><input type="range" class="individual-mass-slider" data-index="${i}" min="0.1" max="5" step="0.1" value="${state.individualMasses[i]}"><span class="w-10 text-right text-xs">${state.individualMasses[i].toFixed(1)}</span></div>`;
+                }
+                dom.individualParamsControls.innerHTML += massHtml;
+                
+                let kHtml = '<h4 class="text-xs text-gray-400 mt-2">Constantes Elásticas (N/m)</h4>';
+                for(let i=0; i < state.numMasses + 1; i++) {
+                    kHtml += `<div class="flex items-center gap-2"><label class="w-8 text-xs">k<sub>${i+1}</sub></label><input type="range" class="individual-k-slider" data-index="${i}" min="1" max="50" step="1" value="${state.individualKs[i]}"><span class="w-10 text-right text-xs">${state.individualKs[i].toFixed(1)}</span></div>`;
+                }
+                dom.individualParamsControls.innerHTML += kHtml;
+
+                dom.individualParamsControls.querySelectorAll('.individual-mass-slider').forEach(slider => {
+                    slider.addEventListener('input', e => {
+                        const index = parseInt(e.target.dataset.index);
+                        const value = parseFloat(e.target.value);
+                        state.individualMasses[index] = value;
+                        e.target.nextElementSibling.textContent = value.toFixed(1);
+                        setupSimulation();
+                    });
+                });
+                dom.individualParamsControls.querySelectorAll('.individual-k-slider').forEach(slider => {
+                    slider.addEventListener('input', e => {
+                        const index = parseInt(e.target.dataset.index);
+                        const value = parseFloat(e.target.value);
+                        state.individualKs[index] = value;
+                        e.target.nextElementSibling.textContent = value.toFixed(1);
+                        setupSimulation();
+                    });
+                });
+            }
+
+            function handleSimModeChange() {
+                state.simulationMode = document.querySelector('input[name="sim-mode"]:checked').value;
+                const isNormalOrSuper = state.simulationMode === 'normal' || state.simulationMode === 'superposition';
+                dom.normalModesPanel.classList.toggle('hidden', !isNormalOrSuper);
+                
+                dom.setupBeatsBtn.classList.toggle('hidden', state.simulationMode !== 'superposition' || !state.isUniform);
+
+                if (isNormalOrSuper) {
+                    if (state.simulationMode === 'normal') {
+                        dom.normalModesDescription.textContent = "Selecciona un modo para visualizar su patrón y frecuencia.";
+                    } else {
+                        dom.normalModesDescription.textContent = "Ajusta la amplitud y fase de cada modo para crear una superposición.";
+                    }
+                    renderNormalModesList();
+                    animateModePreviews();
+                }
+                if (state.simulationMode !== 'real') {
+                    if (state.isPlaying) state.time = 0;
+                    state.masses.forEach(m => { m.x = 0; m.v = 0; });
+                }
+            }
+
+            function setupBeats() {
+                if (state.normalModes.length < 2) return;
+
+                let minDiff = Infinity;
+                let modeIndices = [0, 1];
+                for (let i = 0; i < state.normalModes.length; i++) {
+                    for (let j = i + 1; j < state.normalModes.length; j++) {
+                        const diff = Math.abs(state.normalModes[i].omega - state.normalModes[j].omega);
+                        if (diff > 1e-6 && diff < minDiff) { 
+                            minDiff = diff;
+                            modeIndices = [i, j];
+                        }
+                    }
+                }
+                
+                state.modeAmplitudes.fill(0);
+                state.modePhases.fill(0);
+                state.modeAmplitudes[modeIndices[0]] = 0.5;
+                state.modeAmplitudes[modeIndices[1]] = 0.5;
+                
+                renderNormalModesList();
+                if (!state.isPlaying) updatePhysics(0);
+                showToast(`Activados Modo ${modeIndices[0] + 1} y Modo ${modeIndices[1] + 1} para generar batidos.`);
+            }
+            
+            function togglePlayPause() {
+                state.isPlaying = !state.isPlaying;
+                dom.playPauseBtn.textContent = state.isPlaying ? 'Pausa' : 'Play';
+            }
+            
+            function addDataToLog() {
+                const energies = calculateEnergies();
+                const snapshot = {
+                    time: state.time, mode: state.simulationMode, numMasses: state.numMasses,
+                    damping: state.damping, kineticEnergy: energies.kinetic, potentialEnergy: energies.potential,
+                    totalEnergy: energies.total, positions: state.masses.map(m => m.x)
+                };
+                state.dataLog.push(snapshot);
+                renderDataLog();
+                renderDataLog(true);
+            }
+
             function renderDataLog(isLarge = false) {
                 const tableHead = isLarge ? dom.largeDataTableHead : dom.dataTableHead;
                 const tableBody = isLarge ? dom.largeDataTableBody : dom.dataTableBody;
-                if (state.dataLog.length === 0) { tableHead.innerHTML = ''; tableBody.innerHTML = ''; return; }
+                
+                if (state.dataLog.length === 0) {
+                    tableHead.innerHTML = ''; tableBody.innerHTML = ''; return;
+                }
+                
                 const firstEntry = state.dataLog[0];
                 let headers = isLarge ? `<th>Tiempo (s)</th><th>Modo</th><th>N</th><th>Amort.</th><th>Ecin (J)</th><th>Epot (J)</th><th>Etot (J)</th>` : `<th>T</th><th>M</th><th>N</th><th>Am.</th><th>Ec</th><th>Ep</th><th>Et</th>`;
                 for (let i = 0; i < firstEntry.positions.length; i++) headers += `<th>x${i + 1}(cm)</th>`;
                 tableHead.innerHTML = `<tr>${headers}</tr>`;
+                
                 tableBody.innerHTML = state.dataLog.map(log => {
                     let row = `<td>${log.time.toFixed(2)}</td><td>${log.mode.substring(0,4)}</td><td>${log.numMasses}</td><td>${log.damping.toFixed(2)}</td><td>${log.kineticEnergy.toExponential(2)}</td><td>${log.potentialEnergy.toExponential(2)}</td><td>${log.totalEnergy.toExponential(2)}</td>`;
-                    row += log.positions.map(p => `<td>${((p / state.pixelsPerMeter) * 100).toFixed(2)}</td>`).join('');
+                    row += log.positions.map(p_meters => `<td>${(p_meters * 100).toFixed(2)}</td>`).join('');
                     return `<tr>${row}</tr>`;
                 }).join('');
             }
-            function exportDataToCsv() { if (state.dataLog.length === 0) return; let maxMasses = 0; state.dataLog.forEach(log => { if (log.numMasses > maxMasses) maxMasses = log.numMasses; }); let headers = "Tiempo (s),Modo,N Masas,Amortiguamiento,E Cinética (J),E Potencial (J),E Total (J),"; for (let i = 1; i <= maxMasses; i++) headers += `Posición m${i} (cm),`; headers = headers.slice(0, -1) + "\n"; const csvContent = state.dataLog.map(log => { let row = [log.time.toFixed(3), log.mode, log.numMasses, log.damping.toFixed(2), log.kineticEnergy.toExponential(4), log.potentialEnergy.toExponential(4), log.totalEnergy.toExponential(4)].join(','); let positions = log.positions.map(p => ((p / state.pixelsPerMeter) * 100).toFixed(4)); while (positions.length < maxMasses) positions.push(''); return row + ',' + positions.join(','); }).join('\n'); const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); const url = URL.createObjectURL(blob); link.setAttribute('href', url); link.setAttribute('download', 'datos_oscilaciones.csv'); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link); }
-            function getMousePos(e) { const rect = dom.canvas.getBoundingClientRect(); const clientX = e.touches ? e.touches[0].clientX : e.clientX; const clientY = e.touches ? e.touches[0].clientY : e.clientY; return { x: clientX - rect.left, y: clientY - rect.top }; }
-            function checkMassHover(e) { if (state.simulationMode !== 'real' || state.isDragging) return; const pos = getMousePos(e); let hovering = false; for (const mass of state.masses) { const y_center = dom.canvas.height / 2; const massScreenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const massScreenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; const dist = Math.hypot(pos.x - massScreenX, pos.y - massScreenY); if (dist < mass.radius) { hovering = true; break; } } dom.canvas.style.cursor = hovering ? 'grab' : 'default'; }
-            function handleDragStart(e) { const pos = getMousePos(e); let didClickOnMass = false; let clickedMassIndex = -1; if (e.target === dom.rulerHandle1 || e.target === dom.rulerHandle2) { return; } state.masses.forEach((mass, i) => { const y_center = dom.canvas.height / 2; const massScreenX = state.oscillationDirection === 'horizontal' ? mass.eq_pos + mass.x : mass.eq_pos; const massScreenY = state.oscillationDirection === 'horizontal' ? y_center : y_center + mass.x; const dist = Math.hypot(pos.x - massScreenX, pos.y - massScreenY); if (dist < mass.radius * 1.5) { didClickOnMass = true; clickedMassIndex = i; } }); if (didClickOnMass) { toggleMassForGraphing(clickedMassIndex); if (state.simulationMode === 'real') { state.isDragging = true; state.draggedMassIndex = clickedMassIndex; dom.canvas.style.cursor = 'grabbing'; } if (e.type === 'touchstart') e.preventDefault(); } }
-            function handleDragMove(e) { if (state.ruler.dragging) { const rect = dom.canvas.getBoundingClientRect(); const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left; const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top; state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'x1' : 'x2'] = x; state.ruler[state.ruler.dragging.slice(-1) === '1' ? 'y1' : 'y2'] = y; return; } if (!state.isDragging || state.draggedMassIndex === -1) { checkMassHover(e); return; } if (e.type === 'touchmove') e.preventDefault(); const pos = getMousePos(e); const mass = state.masses[state.draggedMassIndex]; let newX; if (state.oscillationDirection === 'horizontal') { newX = pos.x - mass.eq_pos; const prevMass = state.masses[state.draggedMassIndex - 1]; const nextMass = state.masses[state.draggedMassIndex + 1]; if (prevMass) { const minAllowedPos = prevMass.eq_pos + prevMass.x + prevMass.radius + mass.radius; const minAllowedX = minAllowedPos - mass.eq_pos; newX = Math.max(newX, minAllowedX); } else { const minAllowedPos = 10 + mass.radius; const minAllowedX = minAllowedPos - mass.eq_pos; newX = Math.max(newX, minAllowedX); } if (nextMass) { const maxAllowedPos = nextMass.eq_pos + nextMass.x - nextMass.radius - mass.radius; const maxAllowedX = maxAllowedPos - mass.eq_pos; newX = Math.min(newX, maxAllowedX); } else { const maxAllowedPos = dom.canvas.width - 10 - mass.radius; const maxAllowedX = maxAllowedPos - mass.eq_pos; newX = Math.min(newX, maxAllowedX); } } else { newX = pos.y - (dom.canvas.height / 2); } mass.x = newX; mass.v = 0; }
-            function handleDragEnd() { if (state.isDragging) { state.isDragging = false; state.draggedMassIndex = -1; checkMassHover({}); } }
-            function handleUniformCheckboxChange(e) { state.isUniform = e.target.checked; dom.uniformParamsControls.classList.toggle('hidden', !state.isUniform); dom.individualParamsControls.classList.toggle('hidden', state.isUniform); const modesAvailable = state.isUniform; document.querySelectorAll('input[name="sim-mode"]').forEach(radio => { if (radio.value === 'normal' || radio.value === 'superposition') { radio.disabled = !modesAvailable; } }); if (!modesAvailable && state.simulationMode !== 'real') { document.querySelector('input[name="sim-mode"][value="real"]').checked = true; handleSimModeChange(); } if (!state.isUniform) createIndividualControls(); else setupSimulation(); }
-            function handleUniformSliderInput(e) { const id = e.target.id; const val = parseFloat(e.target.value); const labelElement = document.querySelector(`label[for="${id}"] span`); if (labelElement) { labelElement.textContent = val.toFixed(id.includes('damping') ? 2 : 1); } const stateKey = id.replace(/-slider/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase()); state[stateKey] = val; if (stateKey === 'uniformMass') state.individualMasses.fill(val); else if (stateKey === 'uniformK') state.individualKs.fill(val); setupSimulation(); }
-            function showInfoPopup() { dom.popupMessage.innerHTML = `...`; dom.popupOverlay.classList.remove('hidden'); dom.popupBox.classList.remove('hidden'); setTimeout(() => { dom.popupOverlay.classList.remove('opacity-0'); dom.popupBox.classList.remove('opacity-0'); }, 10); }
-            function hideInfoPopup() { dom.popupOverlay.classList.add('opacity-0'); dom.popupBox.classList.add('opacity-0'); setTimeout(() => { dom.popupOverlay.classList.add('hidden'); dom.popupBox.classList.add('hidden'); }, 300); }
-            function showDataPopup() { renderDataLog(true); dom.dataPopupOverlay.classList.remove('hidden'); dom.dataPopupBox.classList.remove('hidden'); setTimeout(() => { dom.dataPopupOverlay.classList.remove('opacity-0'); dom.dataPopupBox.classList.remove('opacity-0'); }, 10); }
-            function hideDataPopup() { dom.dataPopupOverlay.classList.add('opacity-0'); dom.dataPopupBox.classList.add('opacity-0'); setTimeout(() => { dom.dataPopupOverlay.classList.add('hidden'); dom.dataPopupBox.classList.add('hidden'); }, 300); }
-            function clearData() { state.dataLog = []; renderDataLog(); renderDataLog(true); }
+
+            function exportDataToCsv() {
+                if (state.dataLog.length === 0) return;
+                let maxMasses = 0;
+                state.dataLog.forEach(log => { if (log.numMasses > maxMasses) maxMasses = log.numMasses; });
+                
+                let headers = "Tiempo (s),Modo,N Masas,Amortiguamiento,E Cinética (J),E Potencial (J),E Total (J),";
+                for (let i = 1; i <= maxMasses; i++) headers += `Posición m${i} (cm),`;
+                headers = headers.slice(0, -1) + "\n";
+                
+                const csvContent = state.dataLog.map(log => {
+                    let row = [
+                        log.time.toFixed(3), log.mode, log.numMasses, log.damping.toFixed(2),
+                        log.kineticEnergy.toExponential(4), log.potentialEnergy.toExponential(4), log.totalEnergy.toExponential(4)
+                    ].join(',');
+                    let positions = log.positions.map(p_meters => (p_meters * 100).toFixed(4));
+                    while (positions.length < maxMasses) positions.push('');
+                    return row + ',' + positions.join(',');
+                }).join('\n');
+                
+                const blob = new Blob([headers + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'datos_oscilaciones.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            function handleUniformCheckboxChange(e) {
+                state.isUniform = e.target.checked;
+                dom.uniformParamsControls.classList.toggle('hidden', !state.isUniform);
+                dom.individualParamsControls.classList.toggle('hidden', state.isUniform);
+                
+                const modesAvailable = state.isUniform;
+                document.querySelectorAll('input[name="sim-mode"]').forEach(radio => {
+                    if (radio.value === 'normal' || radio.value === 'superposition') { radio.disabled = !modesAvailable; }
+                });
+                
+                if (!modesAvailable && state.simulationMode !== 'real') {
+                    document.querySelector('input[name="sim-mode"][value="real"]').checked = true;
+                    handleSimModeChange();
+                }
+                
+                if (!state.isUniform) createIndividualControls();
+                else setupSimulation();
+            }
+
+            function handleUniformSliderInput(e) {
+                const id = e.target.id;
+                const val = parseFloat(e.target.value);
+                const labelElement = document.querySelector(`label[for="${id}"] span`);
+                if (labelElement) {
+                    labelElement.textContent = val.toFixed(id.includes('damping') ? 2 : 1);
+                }
+                
+                const stateKey = id.replace(/-slider/, '').replace(/-(\w)/g, (_, c) => c.toUpperCase());
+                state[stateKey] = val;
+                
+                if (stateKey === 'uniformMass') state.individualMasses.fill(val);
+                else if (stateKey === 'uniformK') state.individualKs.fill(val);
+                
+                setupSimulation();
+            }
+
+            let toastTimeout;
+            function showToast(message) {
+                clearTimeout(toastTimeout);
+                dom.toastNotification.textContent = message;
+                dom.toastNotification.classList.remove('opacity-0');
+                toastTimeout = setTimeout(() => {
+                    dom.toastNotification.classList.add('opacity-0');
+                }, 3000);
+            }
+
+            function showInfoPopup() {
+                dom.popupMessage.innerHTML = `
+                    <p>Bienvenido al Simulador de Oscilaciones Acopladas. Esta herramienta te permite explorar cómo un sistema de masas y resortes se comporta bajo diferentes condiciones.</p>
+                    <h5 class="font-bold mt-3 text-sky-500">Conceptos Clave:</h5>
+                    <ul class="list-disc list-inside space-y-2">
+                        <li><strong>Modo Real:</strong> Simula el comportamiento físico exacto del sistema. Puedes interactuar con las masas arrastrándolas para establecer condiciones iniciales.</li>
+                        <li><strong>Modos Normales:</strong> Son patrones de vibración especiales donde todas las masas oscilan a la misma frecuencia. Un sistema de N masas tiene N modos normales. Esta opción solo está disponible para masas y resortes uniformes.</li>
+                        <li><strong>Superposición:</strong> Permite combinar (superponer) múltiples modos normales. Ajusta la amplitud y fase de cada modo para crear patrones de onda complejos.</li>
+                        <li><strong>Batidos (Beats):</strong> Es un patrón de interferencia entre dos ondas de frecuencias ligeramente diferentes. El botón 'Generar Batidos' activa automáticamente los dos modos más cercanos en frecuencia. ¡Puedes experimentar creando otros tipos de batidos activando manualmente cualquier combinación de modos en el panel de superposición!</li>
+                        <li><strong>Oscilador Forzado:</strong> Aplica una fuerza externa oscilante a la primera masa para estudiar fenómenos como la resonancia. Al ajustar la frecuencia forzada a una de las frecuencias de resonancia del sistema (indicadas como guía), observarás cómo el sistema amplifica su oscilación en ese modo particular después de un breve período transitorio.</li>
+                    </ul>
+                    <h5 class="font-bold mt-3 text-sky-500">Cómo Usar:</h5>
+                     <ul class="list-disc list-inside space-y-2">
+                        <li>Usa los controles para ajustar la masa, la constante elástica (k), el amortiguamiento y el número de masas.</li>
+                        <li>En el modo 'Real', haz clic y arrastra una masa para desplazarla. Las masas no pueden atravesarse ni salirse de los límites.</li>
+                        <li>Usa las gráficas para analizar la posición y la energía. La gráfica de posición ahora se desplaza como un osciloscopio para ver mejor las ondas.</li>
+                    </ul>
+                `;
+                dom.popupOverlay.classList.remove('hidden');
+                dom.popupBox.classList.remove('hidden');
+                setTimeout(() => {
+                    dom.popupOverlay.classList.remove('opacity-0');
+                    dom.popupBox.classList.remove('opacity-0');
+                }, 10);
+            }
+
+            function hideInfoPopup() {
+                dom.popupOverlay.classList.add('opacity-0');
+                dom.popupBox.classList.add('opacity-0');
+                setTimeout(() => { dom.popupOverlay.classList.add('hidden'); dom.popupBox.classList.add('hidden'); }, 300);
+            }
+
+            function showDataPopup() {
+                renderDataLog(true);
+                dom.dataPopupOverlay.classList.remove('hidden');
+                dom.dataPopupBox.classList.remove('hidden');
+                setTimeout(() => { dom.dataPopupOverlay.classList.remove('opacity-0'); dom.dataPopupBox.classList.remove('opacity-0'); }, 10);
+            }
+
+            function hideDataPopup() {
+                dom.dataPopupOverlay.classList.add('opacity-0');
+                dom.dataPopupBox.classList.add('opacity-0');
+                setTimeout(() => { dom.dataPopupOverlay.classList.add('hidden'); dom.dataPopupBox.classList.add('hidden'); }, 300);
+            }
+            
+            function clearData() {
+                state.dataLog = [];
+                renderDataLog();
+                renderDataLog(true);
+            }
+
             function buildGraphCheckboxes() {
                 dom.graphCheckboxesContainer.innerHTML = '';
                 for (let i = 0; i < state.numMasses; i++) {
                     const label = document.createElement('label');
                     label.className = 'checkbox-label text-xs';
-                    label.innerHTML = `<input type="checkbox" class="graph-mass-checkbox" data-index="${i}" ${state.graphedMassIndices.includes(i) ? 'checked' : ''}>
-                                       <span class="checkmark"></span>
-                                       <span style="color:${colors[i % colors.length]}; margin-left:8px;">${i+1}</span>`;
+                    label.innerHTML = `
+                        <input type="checkbox" class="graph-mass-checkbox" data-index="${i}" ${state.graphedMassIndices.includes(i) ? 'checked' : ''}>
+                        <span class="checkmark"></span>
+                        <span style="color:${colors[i % colors.length]}; margin-left:8px;">${i+1}</span>
+                    `;
                     label.querySelector('input').addEventListener('change', (e) => {
                         toggleMassForGraphing(parseInt(e.target.dataset.index));
                     });
                     dom.graphCheckboxesContainer.appendChild(label);
                 }
             }
-             function buildEnergyGraphCheckboxes() {
-                dom.energyGraphCheckboxesContainer.innerHTML = '';
-                const energyTypes = ['T', ...Array.from({length: state.numMasses}, (_, i) => i)];
-                
-                energyTypes.forEach(type => {
-                    const label = document.createElement('label');
-                    label.className = 'checkbox-label text-xs';
-                    let labelText, color;
-                    if (type === 'T') { labelText = 'T'; color = 'white'; }
-                    else { labelText = `${type+1}`; color = colors[type % colors.length]; }
 
-                    label.innerHTML = `<input type="checkbox" class="energy-graph-checkbox" value="${type}" ${state.graphedEnergyIndices.includes(type) || state.graphedEnergyIndices.includes(String(type)) ? 'checked' : ''}>
-                                       <span class="checkmark"></span>
-                                       <span style="color:${color}; margin-left:8px;">${labelText}</span>`;
-                    
-                    label.querySelector('input').addEventListener('change', (e) => {
-                        const val = e.target.value === 'T' ? 'total' : e.target.value;
-                        const idx = state.graphedEnergyIndices.indexOf(val);
-                        if(idx > -1) state.graphedEnergyIndices.splice(idx, 1);
-                        else state.graphedEnergyIndices.push(val);
-                    });
-                    dom.energyGraphCheckboxesContainer.appendChild(label);
-                });
+            function updateResonanceInfo() {
+                if(state.isForced && state.isUniform) {
+                    const omega_0 = Math.sqrt(state.uniformK / state.uniformMass);
+                    let infoHtml = '<span>Frec. Resonancia (ω/ω₀): </span>';
+                    infoHtml += state.normalModes.map(mode => `<span class="font-mono text-cyan-400">${(mode.omega / omega_0).toFixed(2)}</span>`).join(', ');
+                    dom.resonanceFrequenciesInfo.innerHTML = infoHtml;
+                } else {
+                    dom.resonanceFrequenciesInfo.innerHTML = '';
+                }
             }
 
             function init() {
-                window.addEventListener('resize', resizeCanvas); state.individualMasses = Array(state.numMasses).fill(state.uniformMass); state.individualKs = Array(state.numMasses + 1).fill(state.uniformK);
+                window.addEventListener('resize', resizeCanvas);
+                state.individualMasses = Array(state.numMasses).fill(state.uniformMass);
+                state.individualKs = Array(state.numMasses + 1).fill(state.uniformK);
+                
                 dom.playPauseBtn.addEventListener('click', togglePlayPause);
-                dom.timeResetBtn.addEventListener('click', () => { state.time = 0; if (!state.isPlaying) { state.masses.forEach(m => { m.x = 0; m.v = 0; }); state.graphData = {}; state.energyGraphData = { total: [], potential: [], kinetic: [], individual: {} }; state.graphedMassIndices = []; buildGraphCheckboxes(); buildEnergyGraphCheckboxes(); } });
+                dom.timeResetBtn.addEventListener('click', () => {
+                    state.time = 0;
+                    if (!state.isPlaying) {
+                        state.masses.forEach(m => { m.x = 0; m.v = 0; m.a = 0; });
+                        state.graphData = {};
+                        state.energyGraphData = { total: [], potential: [], kinetic: [] };
+                        state.graphedMassIndices = [];
+                        buildGraphCheckboxes();
+                    }
+                });
                 dom.timeScaleSlider.addEventListener('input', (e) => state.timeScale = parseFloat(e.target.value));
-                dom.resetBtn.addEventListener('click', () => { if (state.isPlaying) togglePlayPause(); state.time = 0; state.graphData = {}; state.energyGraphData = { total: [], potential: [], kinetic: [], individual: {} }; state.graphedMassIndices = []; setupSimulation(); });
-                dom.infoBtn.addEventListener('click', showInfoPopup); dom.popupClose.addEventListener('click', hideInfoPopup); dom.popupOverlay.addEventListener('click', hideInfoPopup);
-                dom.directionRadios.forEach(radio => radio.addEventListener('change', e => { state.oscillationDirection = e.target.value; resizeCanvas(); }));
-                dom.massCountMinusBtn.addEventListener('click', () => handleMassCountChange(-1)); dom.massCountPlusBtn.addEventListener('click', () => handleMassCountChange(1));
+                dom.resetBtn.addEventListener('click', () => {
+                    if (state.isPlaying) togglePlayPause();
+                    state.time = 0;
+                    state.graphData = {};
+                    state.energyGraphData = { total: [], potential: [], kinetic: [] };
+                    state.graphedMassIndices = [];
+                    setupSimulation();
+                });
+                
+                dom.infoBtn.addEventListener('click', showInfoPopup);
+                dom.popupClose.addEventListener('click', hideInfoPopup);
+                dom.popupOverlay.addEventListener('click', hideInfoPopup);
+                
+                dom.directionRadios.forEach(radio => radio.addEventListener('change', e => {
+                    state.oscillationDirection = e.target.value;
+                    resizeCanvas();
+                }));
+                
+                dom.massCountMinusBtn.addEventListener('click', () => handleMassCountChange(-1));
+                dom.massCountPlusBtn.addEventListener('click', () => handleMassCountChange(1));
+                
                 dom.simModeRadios.forEach(radio => radio.addEventListener('change', handleSimModeChange));
                 dom.uniformParamsCheckbox.addEventListener('change', handleUniformCheckboxChange);
-                ['uniform-mass-slider', 'uniform-k-slider', 'damping-slider'].forEach(id => { document.getElementById(id).addEventListener('input', handleUniformSliderInput); });
-                dom.canvas.addEventListener('mousedown', handleDragStart); dom.canvas.addEventListener('touchstart', handleDragStart, { passive: false });
-                dom.addDataBtn.addEventListener('click', addDataToLog); dom.viewDataBtn.addEventListener('click', showDataPopup);
-                dom.dataPopupClose.addEventListener('click', hideDataPopup); dom.dataPopupOverlay.addEventListener('click', hideDataPopup);
-                dom.largeClearDataBtn.addEventListener('click', clearData); dom.largeExportCsvBtn.addEventListener('click', exportDataToCsv);
+                ['uniform-mass-slider', 'uniform-k-slider', 'damping-slider'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', handleUniformSliderInput);
+                });
+                
+                dom.canvas.addEventListener('mousedown', handleDragStart);
+                dom.canvas.addEventListener('touchstart', handleDragStart, { passive: false });
+                
+                dom.addDataBtn.addEventListener('click', addDataToLog);
+                dom.viewDataBtn.addEventListener('click', showDataPopup);
+                dom.dataPopupClose.addEventListener('click', hideDataPopup);
+                dom.dataPopupOverlay.addEventListener('click', hideDataPopup);
+                dom.largeClearDataBtn.addEventListener('click', clearData);
+                dom.largeExportCsvBtn.addEventListener('click', exportDataToCsv);
+                dom.setupBeatsBtn.addEventListener('click', setupBeats);
+                
                 dom.rulerCheckbox.addEventListener('change', e => dom.rulerContainer.classList.toggle('hidden', !e.target.checked));
-                ['rulerHandle1', 'rulerHandle2'].forEach(handleId => { dom[handleId].addEventListener('mousedown', e => { state.ruler.dragging = handleId; e.stopPropagation(); }); });
-                const combinedMoveListener = (e) => { handleDragMove(e); };
-                const combinedEndListener = () => { if (state.ruler.dragging) state.ruler.dragging = null; handleDragEnd(); };
-                window.addEventListener('mousemove', combinedMoveListener); window.addEventListener('touchmove', combinedMoveListener, { passive: false });
-                window.addEventListener('mouseup', combinedEndListener); window.addEventListener('mouseleave', combinedEndListener); window.addEventListener('touchend', combinedEndListener);
+                dom.showPositionGraphCheckbox.addEventListener('change', e => {
+                    dom.positionGraphContainer.classList.toggle('hidden', !e.target.checked)
+                    if(e.target.checked) resizeCanvas();
+                });
+                dom.showEnergyGraphCheckbox.addEventListener('change', e => {
+                    dom.energyGraphContainer.classList.toggle('hidden', !e.target.checked)
+                    if(e.target.checked) resizeCanvas();
+                });
+
+                ['rulerHandle1', 'rulerHandle2'].forEach(handleId => {
+                    dom[handleId].addEventListener('mousedown', e => {
+                        state.ruler.dragging = handleId;
+                        e.stopPropagation();
+                    });
+                });
+
+                const combinedMoveListener = (e) => { 
+                    if(state.isDragging || state.ruler.dragging) e.preventDefault();
+                    handleDragMove(e); 
+                };
+                const combinedEndListener = () => {
+                    if (state.ruler.dragging) state.ruler.dragging = null;
+                    handleDragEnd();
+                };
+                
+                window.addEventListener('mousemove', combinedMoveListener);
+                window.addEventListener('touchmove', combinedMoveListener, { passive: false });
+                window.addEventListener('mouseup', combinedEndListener);
+                window.addEventListener('mouseleave', combinedEndListener);
+                window.addEventListener('touchend', combinedEndListener);
                 
                 dom.forcedOscillatorCheckbox.addEventListener('change', e => {
                     state.isForced = e.target.checked;
                     dom.forcedOscillatorControls.classList.toggle('hidden', !state.isForced);
+                    updateResonanceInfo();
                     if (state.isForced) {
                         document.querySelector('input[name="sim-mode"][value="real"]').checked = true;
                         handleSimModeChange();
@@ -615,7 +1414,7 @@
                             if (radio.value !== 'real') radio.disabled = true;
                         });
                     } else {
-                        document.querySelectorAll('input[name="sim-mode"]').forEach(radio => radio.disabled = false);
+                        document.querySelectorAll('input[name="sim-mode"]').forEach(radio => radio.disabled = !state.isUniform && (radio.value !== 'real'));
                     }
                 });
                 dom.forcingAmplitudeSlider.addEventListener('input', e => {
@@ -627,8 +1426,10 @@
                     dom.forcingFrequencyLabel.textContent = state.forcingFrequency.toFixed(2);
                 });
 
-                resizeCanvas(); gameLoop();
+                resizeCanvas();
+                gameLoop();
             }
+            
             init();
         });
     </script>
