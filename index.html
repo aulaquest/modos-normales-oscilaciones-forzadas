@@ -382,7 +382,8 @@
                 individualMasses: [], individualKs: [],
                 dataLog: [],
                 graphedMassIndices: [], graphData: {},
-                graphedEnergyIndices: ['total', 'kinetic', 'potential'], energyGraphData: { total: [], potential: [], kinetic: [] },
+                graphedEnergyIndices: ['total', 'kinetic', 'potential'], 
+                energyGraphData: { total: [], potential: [], kinetic: [], individualK: {} },
                 pixelsPerMeter: 500, 
                 ruler: { x1: 50, y1: 50, x2: 200, y2: 50, dragging: null },
                 isForced: false,
@@ -805,7 +806,7 @@
                 graphCtx.fillText(minLabel + ' cm', 0, h - padding.bottom);
             }
 
-            function drawEnergyGraph() {
+             function drawEnergyGraph() {
                 energyGraphCtx.clearRect(0, 0, dom.energyGraphCanvas.width, dom.energyGraphCanvas.height);
                 if (!state.energyGraphData || state.energyGraphData.total.length < 2) return;
 
@@ -814,29 +815,33 @@
                 const plotWidth = w - padding.left - padding.right;
                 const plotHeight = h - padding.top - padding.bottom;
                 
-                let maxE = 0; 
-                state.graphedEnergyIndices.forEach(idx => {
-                    const data = state.energyGraphData[idx.toLowerCase()];
-                    if (data && data.length > 0) {
-                        const currentMax = Math.max(...data);
-                         if(currentMax > maxE) maxE = currentMax;
-                    }
-                });
-                
+                let maxE = 0;
+                if(state.energyGraphData.total && state.energyGraphData.total.length > 0) {
+                    maxE = Math.max(...state.energyGraphData.total);
+                }
                 maxE = Math.max(0.001, maxE);
                 const scaleY = plotHeight / maxE;
-                
+
+                // Draw lines
                 state.graphedEnergyIndices.forEach(idx => {
-                    const key = idx.toLowerCase();
-                    const data = state.energyGraphData[key];
-                    let color;
-                    if(key === 'total') { color = 'white'; }
-                    else if(key === 'potential') { color = '#60a5fa'; }
-                    else if(key === 'kinetic') { color = '#fb923c'; }
+                    let data, color;
+                    if (idx === 'total' || idx === 'kinetic' || idx === 'potential') {
+                        data = state.energyGraphData[idx];
+                         if(idx === 'total') { color = 'white'; }
+                         else if(idx === 'potential') { color = '#60a5fa'; }
+                         else if(idx === 'kinetic') { color = '#fb923c'; }
+                    } else {
+                        // It's an individual kinetic energy index
+                        const massIndex = parseInt(idx);
+                        if (state.energyGraphData.individualK[massIndex]) {
+                            data = state.energyGraphData.individualK[massIndex];
+                            color = colors[massIndex % colors.length];
+                        }
+                    }
 
                     if(!data || data.length < 2) return;
                     
-                    energyGraphCtx.strokeStyle = color; energyGraphCtx.lineWidth = (key === 'total' ? 2 : 1.5);
+                    energyGraphCtx.strokeStyle = color; energyGraphCtx.lineWidth = (idx === 'total' ? 2 : 1.5);
                     energyGraphCtx.beginPath();
                     for (let j = 0; j < data.length; j++) {
                         const screenX = padding.left + (j / (data.length - 1)) * plotWidth;
@@ -847,6 +852,7 @@
                     energyGraphCtx.stroke();
                 });
                 
+                // Draw Axes
                 energyGraphCtx.strokeStyle = '#64748b'; energyGraphCtx.lineWidth = 1;
                 energyGraphCtx.beginPath();
                 energyGraphCtx.moveTo(padding.left, padding.top);
@@ -895,6 +901,16 @@
                     state.energyGraphData.potential.push(energies.potential);
                     state.energyGraphData.kinetic.push(energies.kinetic);
                     
+                    energies.individualK.forEach((ke, i) => {
+                        if (!state.energyGraphData.individualK[i]) {
+                            state.energyGraphData.individualK[i] = [];
+                        }
+                        state.energyGraphData.individualK[i].push(ke);
+                        if (state.energyGraphData.individualK[i].length > 300) {
+                            state.energyGraphData.individualK[i].shift();
+                        }
+                    });
+
                     if (state.energyGraphData.total.length > 300) {
                         state.energyGraphData.total.shift();
                         state.energyGraphData.potential.shift();
@@ -914,14 +930,17 @@
 
             function calculateEnergies() {
                 let kinetic = 0, potential = 0;
+                const individualK = [];
                 state.masses.forEach(mass => {
-                    kinetic += 0.5 * mass.m * mass.v * mass.v;
+                    const ke = 0.5 * mass.m * mass.v * mass.v;
+                    kinetic += ke;
+                    individualK.push(ke);
                 });
                 for (let i = 0; i < state.numMasses + 1; i++) {
                     const stretch_m = (i < state.numMasses ? state.masses[i].x : 0) - (i > 0 ? state.masses[i - 1].x : 0);
                     potential += 0.5 * state.springs[i].k * stretch_m * stretch_m;
                 }
-                return { kinetic, potential, total: kinetic + potential };
+                return { kinetic, potential, total: kinetic + potential, individualK };
             }
 
             function handleDragStart(e) {
@@ -1013,7 +1032,7 @@
                 state.individualKs = Array(state.numMasses + 1).fill(state.uniformK);
                 state.graphedMassIndices = [];
                 state.graphData = {};
-                state.energyGraphData = { total: [], potential: [], kinetic: [] };
+                state.energyGraphData = { total: [], potential: [], kinetic: [], individualK: {} };
                 
                 if(!state.isUniform) createIndividualControls();
                 handleSimModeChange();
@@ -1370,6 +1389,24 @@
                     });
                     dom.energyGraphCheckboxesContainer.appendChild(label);
                 });
+
+                // Add individual kinetic energy checkboxes
+                for (let i = 0; i < state.numMasses; i++) {
+                     const label = document.createElement('label');
+                    label.className = 'checkbox-label text-xs';
+                    label.innerHTML = `
+                        <input type="checkbox" class="energy-graph-checkbox" value="${i}" ${state.graphedEnergyIndices.includes(i.toString()) ? 'checked' : ''}>
+                        <span class="checkmark"></span>
+                        <span style="color:${colors[i % colors.length]}; margin-left:8px;">K<sub>${i+1}</sub></span>
+                    `;
+                     label.querySelector('input').addEventListener('change', (e) => {
+                        const val = e.target.value;
+                        const idx = state.graphedEnergyIndices.indexOf(val);
+                        if(idx > -1) state.graphedEnergyIndices.splice(idx, 1);
+                        else state.graphedEnergyIndices.push(val);
+                    });
+                    dom.energyGraphCheckboxesContainer.appendChild(label);
+                }
             }
 
 
@@ -1395,7 +1432,7 @@
                     if (!state.isPlaying) {
                         state.masses.forEach(m => { m.x = 0; m.v = 0; m.a = 0; });
                         state.graphData = {};
-                        state.energyGraphData = { total: [], potential: [], kinetic: [] };
+                        state.energyGraphData = { total: [], potential: [], kinetic: [], individualK: {} };
                         state.graphedMassIndices = [];
                         buildGraphCheckboxes();
                     }
@@ -1405,7 +1442,7 @@
                     if (state.isPlaying) togglePlayPause();
                     state.time = 0;
                     state.graphData = {};
-                    state.energyGraphData = { total: [], potential: [], kinetic: [] };
+                    state.energyGraphData = { total: [], potential: [], kinetic: [], individualK: {} };
                     state.graphedMassIndices = [];
                     setupSimulation();
                 });
